@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Bell, Settings, AlertTriangle, AlertCircle, LifeBuoy, Undo2, Check, Target, Scissors, LogOut, LayoutDashboard, ClipboardList, FolderOpen, Users, TrendingUp, Clock, KeyRound, Shield } from "lucide-react";
+import { supabase } from "./supabase";
 
 const hashClave = async (clave, usuario) => {
   const encoder = new TextEncoder();
@@ -2405,6 +2406,9 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
     setRegistros(prev => [nuevoReg, ...prev]);
     if (setRegistrosGlobales) setRegistrosGlobales(prev => [nuevoReg, ...prev.slice(0, 499)]);
 
+    // Guardar en Supabase
+    supabase.from("registros").insert({ id: ahora, ts, orden: ordenSel, operacion: operacionSel, talla: tallaActiva, es_parada: false, es_defecto: false, tiempo_real: tiempoParaEf, sam: samActual, usuario_id: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo }).then(({ error }) => { if (error) console.error("Error guardando registro:", error); });
+
     setOrdenes(prev => prev.map(o => {
       if (o.id !== ordenSel) return o;
       const sec = o.secuencia.map(s => {
@@ -2448,6 +2452,11 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
         ? { ...r, activa: false, tsFin, duracionMin: Math.round((tsFin - r.tsInicio) / 60000) }
         : r
     ));
+    // Actualizar parada en Supabase
+    const paradaActiva = registros.find(r => r.esParada && r.activa);
+    if (paradaActiva) {
+      supabase.from("registros").update({ activa: false, duracion_min: Math.round((tsFin - paradaActiva.tsInicio) / 60000) }).eq("id", paradaActiva.id).then(({ error }) => { if (error) console.error("Error cerrando parada:", error); });
+    }
     setCronIniciado(true);
   };
 
@@ -2495,6 +2504,8 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
     };
     setRegistros(prev => [reg, ...prev]);
     if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
+    // Guardar parada en Supabase
+    supabase.from("registros").insert({ id: reg.id, ts: reg.ts, orden: ordenSel, operacion: operacionSel, es_parada: true, es_defecto: false, motivo: motivoParada, afecta_ef: motivoObj?.afectaEf || false, activa: true, usuario_id: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo }).then(({ error }) => { if (error) console.error("Error guardando parada:", error); });
     setCronIniciado(false);
     setMotivoParada("");
     setShowParada(false);
@@ -3229,6 +3240,62 @@ export default function App() {
   const [registrosGlobales, setRegistrosGlobales] = useState([]);
   const [horarios, setHorarios] = useState(HORARIOS_INIT);
   const [catalogo, setCatalogo] = useState(CATALOGO_INIT);
+  const [dbListo, setDbListo] = useState(false);
+
+  // ─── CARGA INICIAL DESDE SUPABASE ─────────────────────────────────────────
+  useEffect(() => {
+    const cargarDatos = async () => {
+      try {
+        // Usuarios
+        const { data: uData } = await supabase.from("usuarios").select("*");
+        if (uData?.length) setUsuarios(uData.map(u => ({ id: u.id, nombre: u.nombre, usuario: u.usuario, clave: u.clave, rol: u.rol, modulo: u.modulo || "", activo: u.activo, hashPendiente: false })));
+
+        // Órdenes
+        const { data: oData } = await supabase.from("ordenes").select("*");
+        if (oData?.length) setOrdenes(oData.map(o => ({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidadTotal: o.cantidad_total, cantidadProducida: o.cantidad_producida, fechaEntrega: o.fecha_entrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas || [], secuencia: o.secuencia || [] })));
+
+        // Catálogo
+        const { data: cData } = await supabase.from("catalogo").select("*");
+        if (cData?.length) setCatalogo(cData.map(c => ({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas || [], operaciones: c.operaciones || [] })));
+
+        // Asignaciones
+        const { data: aData } = await supabase.from("asignaciones").select("*");
+        if (aData?.length) setAsignaciones(aData.map(a => ({ usuarioId: a.usuario_id, ordenId: a.orden_id, operaciones: a.operaciones || [] })));
+
+        // Horarios
+        const { data: hData } = await supabase.from("horarios").select("*").order("id", { ascending: false }).limit(1);
+        if (hData?.length) setHorarios(hData[0].config);
+
+        // Registros del turno actual (últimas 12h)
+        const hace12h = new Date(Date.now() - 12 * 3600000).toISOString();
+        const { data: rData } = await supabase.from("registros").select("*").gte("created_at", hace12h);
+        if (rData?.length) setRegistrosGlobales(rData.map(r => ({ id: r.id, ts: r.ts, orden: r.orden, operacion: r.operacion, talla: r.talla, esParada: r.es_parada, esDefecto: r.es_defecto, tiempoReal: r.tiempo_real, sam: r.sam, usuarioId: r.usuario_id, nombre: r.nombre, modulo: r.modulo, motivo: r.motivo, afectaEf: r.afecta_ef, activa: r.activa, duracionMin: r.duracion_min })));
+
+        setDbListo(true);
+      } catch (e) {
+        console.error("Error cargando datos:", e);
+        setDbListo(true); // Continuar con datos locales si falla
+      }
+    };
+    cargarDatos();
+  }, []);
+
+  // ─── SINCRONIZACIÓN EN TIEMPO REAL ────────────────────────────────────────
+  useEffect(() => {
+    if (!dbListo) return;
+    const canal = supabase
+      .channel("cambios_produccion")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "registros" }, payload => {
+        const r = payload.new;
+        setRegistrosGlobales(prev => [{ id: r.id, ts: r.ts, orden: r.orden, operacion: r.operacion, talla: r.talla, esParada: r.es_parada, esDefecto: r.es_defecto, tiempoReal: r.tiempo_real, sam: r.sam, usuarioId: r.usuario_id, nombre: r.nombre, modulo: r.modulo, motivo: r.motivo, afectaEf: r.afecta_ef, activa: r.activa, duracionMin: r.duracion_min }, ...prev.slice(0, 499)]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "registros" }, payload => {
+        const r = payload.new;
+        setRegistrosGlobales(prev => prev.map(x => x.id === r.id ? { ...x, activa: r.activa, duracionMin: r.duracion_min } : x));
+      })
+      .subscribe();
+    return () => supabase.removeChannel(canal);
+  }, [dbListo]);
   const [listoParaUsar, setListoParaUsar] = useState(false);
   const [hora, setHora] = useState(new Date().toLocaleTimeString("es-CO"));
   const [ultimaActividad, setUltimaActividad] = useState(Date.now());
@@ -3273,7 +3340,67 @@ export default function App() {
     return () => { window.removeEventListener("click", actualizar); window.removeEventListener("touchstart", actualizar); };
   }, []);
 
-  const registrarLog = async (accion, u) => {
+  const setOrdenesSync = useCallback((updater) => {
+    setOrdenes(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(o => {
+        const existe = prev.find(p => p.id === o.id);
+        if (!existe || JSON.stringify(existe) !== JSON.stringify(o)) {
+          supabase.from("ordenes").upsert({
+            id: o.id, referencia: o.referencia, descripcion: o.descripcion,
+            cliente: o.cliente, cantidad_total: o.cantidadTotal,
+            cantidad_producida: o.cantidadProducida, fecha_entrega: o.fechaEntrega,
+            estado: o.estado, prioridad: o.prioridad, tallas: o.tallas, secuencia: o.secuencia
+          }).then(({ error }) => { if (error) console.error("Error sync orden:", error); });
+        }
+      });
+      return next;
+    });
+  }, []);
+
+  const setCatalogoSync = useCallback((updater) => {
+    setCatalogo(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Encontrar items nuevos o modificados
+      next.forEach(c => {
+        const existe = prev.find(p => p.id === c.id);
+        if (!existe || JSON.stringify(existe) !== JSON.stringify(c)) {
+          supabase.from("catalogo").upsert({
+            id: c.id,
+            nombre: c.nombre,
+            descripcion: c.descripcion || "",
+            tallas: c.tallas,
+            operaciones: c.operaciones
+          }).then(({ error }) => {
+            if (error) console.error("Error sync catalogo:", error);
+            else console.log("Catálogo guardado:", c.nombre);
+          });
+        }
+      });
+      return next;
+    });
+  }, []);
+
+  const setAsignacionesSync = useCallback((updater) => {
+    setAsignaciones(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Borrar y reinsertar asignaciones
+      supabase.from("asignaciones").delete().neq("id", 0).then(() => {
+        next.forEach(a => {
+          supabase.from("asignaciones").insert({ usuario_id: a.usuarioId, orden_id: a.ordenId, operaciones: a.operaciones }).then(({ error }) => { if (error) console.error("Error sync asignacion:", error); });
+        });
+      });
+      return next;
+    });
+  }, []);
+
+  const setHorariosSync = useCallback((updater) => {
+    setHorarios(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      supabase.from("horarios").upsert({ id: 1, config: next }).then(({ error }) => { if (error) console.error("Error sync horarios:", error); });
+      return next;
+    });
+  }, []);
     if (!u) return;
     const entrada = { ts: new Date().toLocaleTimeString("es-CO"), nombre: u.nombre, rol: u.rol, accion, epoch: Date.now() };
     // Hash simple de integridad
@@ -3329,7 +3456,7 @@ export default function App() {
   if (sesion.rol === "OPERARIO" || tab === "tablet") {
     return (
       <TabletOperario
-        ordenes={ordenes} setOrdenes={setOrdenes}
+        ordenes={ordenes} setOrdenes={setOrdenesSync}
         sesion={sesion} asignaciones={asignaciones}
         mensajes={mensajes} setMensajes={setMensajes}
         registrosGlobales={registrosGlobales} setRegistrosGlobales={setRegistrosGlobales}
@@ -3372,8 +3499,8 @@ export default function App() {
             <p style={{ fontSize: 8, color: T.muted, letterSpacing: "0.14em", fontFamily: T.mono }}>CONTROL DE PISO</p>
           </div>
           <div className="hide-mobile" style={{ alignItems: "center", gap: 6, marginLeft: 8 }}>
-            <span className="blink" style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, display: "inline-block" }} />
-            <span style={{ fontSize: 9, color: T.green, fontFamily: T.mono }}>ACTIVO</span>
+            <span className="blink" style={{ width: 6, height: 6, borderRadius: "50%", background: dbListo ? T.green : T.yellow, display: "inline-block" }} />
+            <span style={{ fontSize: 9, color: dbListo ? T.green : T.yellow, fontFamily: T.mono }}>{dbListo ? "CONECTADO" : "SINCRONIZANDO..."}</span>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3409,11 +3536,11 @@ export default function App() {
       <main className="main-content" style={{ maxWidth: 1280, margin: "0 auto", padding: "14px 12px" }}>
         {tab === "inicio"     && <AdminHome setTab={setTab} ordenes={ordenes} operarios={operarios} usuarios={usuarios} registrosGlobales={registrosGlobales} logActividad={logActividad} sesion={sesion} />}
         {tab === "dashboard"  && <Dashboard ordenes={ordenes} operarios={operarios} registrosGlobales={registrosGlobales} usuarios={usuarios} asignaciones={asignaciones} horarios={horarios} />}
-        {tab === "ordenes"    && <GestionOrdenes ordenes={ordenes} setOrdenes={setOrdenes} operarios={operarios} catalogo={catalogo} />}
-        {tab === "catalogo"   && <GestionCatalogo catalogo={catalogo} setCatalogo={setCatalogo} sesion={sesion} />}
-        {tab === "operarios"  && <GestionOperarios operarios={operarios} setOperarios={setOperarios} ordenes={ordenes} usuarios={usuarios} asignaciones={asignaciones} setAsignaciones={setAsignaciones} mensajes={mensajes} setMensajes={setMensajes} sesion={sesion} registrosGlobales={registrosGlobales} horarios={horarios} setHorarios={setHorarios} />}
+        {tab === "ordenes"    && <GestionOrdenes ordenes={ordenes} setOrdenes={setOrdenesSync} operarios={operarios} catalogo={catalogo} />}
+        {tab === "catalogo"   && <GestionCatalogo catalogo={catalogo} setCatalogo={setCatalogoSync} sesion={sesion} />}
+        {tab === "operarios"  && <GestionOperarios operarios={operarios} setOperarios={setOperarios} ordenes={ordenes} usuarios={usuarios} asignaciones={asignaciones} setAsignaciones={setAsignacionesSync} mensajes={mensajes} setMensajes={setMensajes} sesion={sesion} registrosGlobales={registrosGlobales} horarios={horarios} setHorarios={setHorariosSync} />}
         {tab === "eficiencia" && <Eficiencia ordenes={ordenes} operarios={operarios} registrosGlobales={registrosGlobales} usuarios={usuarios} />}
-        {tab === "horarios"   && <ConfigHorarios horarios={horarios} setHorarios={setHorarios} sesion={sesion} />}
+        {tab === "horarios"   && <ConfigHorarios horarios={horarios} setHorarios={setHorariosSync} sesion={sesion} />}
         {tab === "reporte"    && <ReporteDiario registrosGlobales={registrosGlobales} usuarios={usuarios} ordenes={ordenes} asignaciones={asignaciones} />}
         {tab === "usuarios"   && <GestionUsuarios usuarios={usuarios} setUsuarios={setUsuarios} sesion={sesion} />}
         {tab === "log"        && <Log logActividad={logActividad} setLogActividad={setLogActividad} />}
