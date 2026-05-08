@@ -3343,16 +3343,9 @@ export default function App() {
   const setOrdenesSync = useCallback((updater) => {
     setOrdenes(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
+      // Sincronizar cada orden modificada
       next.forEach(o => {
-        const existe = prev.find(p => p.id === o.id);
-        if (!existe || JSON.stringify(existe) !== JSON.stringify(o)) {
-          supabase.from("ordenes").upsert({
-            id: o.id, referencia: o.referencia, descripcion: o.descripcion,
-            cliente: o.cliente, cantidad_total: o.cantidadTotal,
-            cantidad_producida: o.cantidadProducida, fecha_entrega: o.fechaEntrega,
-            estado: o.estado, prioridad: o.prioridad, tallas: o.tallas, secuencia: o.secuencia
-          }).then(({ error }) => { if (error) console.error("Error sync orden:", error); });
-        }
+        supabase.from("ordenes").upsert({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidad_total: o.cantidadTotal, cantidad_producida: o.cantidadProducida, fecha_entrega: o.fechaEntrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas, secuencia: o.secuencia }).then(({ error }) => { if (error) console.error("Error sync orden:", error); });
       });
       return next;
     });
@@ -3361,21 +3354,8 @@ export default function App() {
   const setCatalogoSync = useCallback((updater) => {
     setCatalogo(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      // Encontrar items nuevos o modificados
       next.forEach(c => {
-        const existe = prev.find(p => p.id === c.id);
-        if (!existe || JSON.stringify(existe) !== JSON.stringify(c)) {
-          supabase.from("catalogo").upsert({
-            id: c.id,
-            nombre: c.nombre,
-            descripcion: c.descripcion || "",
-            tallas: c.tallas,
-            operaciones: c.operaciones
-          }).then(({ error }) => {
-            if (error) console.error("Error sync catalogo:", error);
-            else console.log("Catálogo guardado:", c.nombre);
-          });
-        }
+        supabase.from("catalogo").upsert({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas, operaciones: c.operaciones }).then(({ error }) => { if (error) console.error("Error sync catalogo:", error); });
       });
       return next;
     });
@@ -3401,6 +3381,8 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const registrarLog = async (accion, u) => {
     if (!u) return;
     const entrada = { ts: new Date().toLocaleTimeString("es-CO"), nombre: u.nombre, rol: u.rol, accion, epoch: Date.now() };
     // Hash simple de integridad
