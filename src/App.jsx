@@ -467,34 +467,26 @@ const Login = ({ usuarios, onLogin }) => {
   const [cargando, setCargando] = useState(false);
 
   const intentar = async () => {
-    const u = sanitizar(usuario);
+    const u = sanitizar(usuario).toLowerCase();
     const c = sanitizar(clave);
     if (!u || !c) { setError("Completa todos los campos"); return; }
-    const bloqueos = getBloqueos();
-    const bloqueo = bloqueos[u];
-    if (bloqueo?.bloqueadoHasta && Date.now() < bloqueo.bloqueadoHasta) {
-      const mins = Math.ceil((bloqueo.bloqueadoHasta - Date.now()) / 60000);
-      setError("Bloqueado. Intenta en " + mins + " min.");
-      return;
-    }
     setCargando(true);
     try {
-      const hash = await hashClave(c, u);
-      const found = usuarios.find(x => x.usuario === u && x.clave === hash && x.activo);
-      if (!found) {
-        const prev = bloqueos[u]?.count || 0;
-        const count = prev + 1;
-        if (count >= MAX_INTENTOS) {
-          setBloqueos({ ...bloqueos, [u]: { count, bloqueadoHasta: Date.now() + BLOQUEO_MS } });
-          setError("Demasiados intentos. Bloqueado 15 min.");
-        } else {
-          setBloqueos({ ...bloqueos, [u]: { count } });
-          setError("Usuario o clave incorrectos. " + (MAX_INTENTOS - count) + " intentos restantes.");
-        }
-      } else {
-        setBloqueos({ ...bloqueos, [u]: { count: 0 } });
-        onLogin(found);
+      const email = u + "@origentex.com";
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password: c });
+      if (authError || !data.user) {
+        setError("Usuario o clave incorrectos.");
+        return;
       }
+      const found = usuarios.find(x => x.usuario === u && x.activo);
+      if (!found) {
+        await supabase.auth.signOut();
+        setError("Usuario inactivo o no encontrado.");
+        return;
+      }
+      onLogin(found);
+    } catch(e) {
+      setError("Error de conexión. Intenta de nuevo.");
     } finally { setCargando(false); }
   };
 
@@ -3400,8 +3392,9 @@ export default function App() {
     registrarLog("INICIO DE SESIÓN", u);
   };
 
-  const cerrarSesion = () => {
+  const cerrarSesion = async () => {
     if (sesion) registrarLog("CIERRE DE SESIÓN", sesion);
+    await supabase.auth.signOut();
     setSesion(null);
     setTab("dashboard");
   };
