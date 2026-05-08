@@ -1957,6 +1957,7 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
             {sesion?.id !== u.id && (
               <button onClick={async () => {
                 const nuevoActivo = !u.activo;
+                console.log("toggle usuario:", u.usuario, "auth_id:", u.auth_id);
                 setUsuarios(prev => prev.map(x => x.id !== u.id ? x : { ...x, activo: nuevoActivo }));
                 await supabase.from("usuarios").update({ activo: nuevoActivo }).eq("id", u.id);
                 if (u.auth_id) {
