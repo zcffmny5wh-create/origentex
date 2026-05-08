@@ -3252,7 +3252,7 @@ export default function App() {
       try {
         // Usuarios
         const { data: uData } = await supabase.from("usuarios").select("*");
-        if (uData?.length) setUsuarios(uData.map(u => ({ id: u.id, nombre: u.nombre, usuario: u.usuario, clave: u.clave, rol: u.rol, modulo: u.modulo || "", activo: u.activo, hashPendiente: false })));
+        if (uData?.length) setUsuarios(uData.map(u => ({ id: u.id, nombre: u.nombre, usuario: u.usuario, clave: u.clave, rol: u.rol, modulo: u.modulo || "", activo: u.activo, hashPendiente: false, auth_id: u.auth_id || null })));
 
         // Órdenes
         const { data: oData } = await supabase.from("ordenes").select("*");
