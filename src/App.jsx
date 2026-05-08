@@ -3381,6 +3381,8 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const registrarLog = async (accion, u) => {
     if (!u) return;
     const entrada = { ts: new Date().toLocaleTimeString("es-CO"), nombre: u.nombre, rol: u.rol, accion, epoch: Date.now() };
     // Hash simple de integridad
