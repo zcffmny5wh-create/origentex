@@ -48,12 +48,12 @@ const TIPOS_DEFECTO = ["Costura abierta", "Medida incorrecta", "Tela defectuosa"
 // ADVERTENCIA DE SEGURIDAD: Las claves iniciales están en texto plano solo para demo.
 // En producción conectar a Supabase Auth — nunca guardar claves en el código fuente.
 const USUARIOS_INIT = [
-  { id: "U001", nombre: "Gerente",       usuario: "admin",  clave: "1234", rol: "ADMIN",      activo: true,  modulo: "",         hashPendiente: true },
-  { id: "U002", nombre: "Jefe de Piso",  usuario: "super1", clave: "1234", rol: "SUPERVISOR", activo: true,  modulo: "Módulo A", hashPendiente: true },
-  { id: "U003", nombre: "María López",   usuario: "op1",    clave: "1234", rol: "OPERARIO",   activo: true,  modulo: "Módulo A", hashPendiente: true },
-  { id: "U004", nombre: "Carlos Ruiz",   usuario: "op2",    clave: "1234", rol: "OPERARIO",   activo: true,  modulo: "Módulo B", hashPendiente: true },
-  { id: "U005", nombre: "Ana García",    usuario: "op3",    clave: "1234", rol: "OPERARIO",   activo: true,  modulo: "Módulo B", hashPendiente: true },
-  { id: "U006", nombre: "Luis Martínez", usuario: "op4",    clave: "1234", rol: "OPERARIO",   activo: false, modulo: "Módulo C", hashPendiente: true },
+  { id: "U001", nombre: "Gerente",       usuario: "admin",  clave: "d8e6c0806d00ae3b122629be6cdb743e9af1b4c01a0428b0cdf609f25032f239", rol: "ADMIN",      activo: true,  modulo: "",         hashPendiente: false },
+  { id: "U002", nombre: "Jefe de Piso",  usuario: "super1", clave: "70e0daa16c995420538f909d69f075db87b9e10349936e0b66e7c305e574ea10", rol: "SUPERVISOR", activo: true,  modulo: "Módulo A", hashPendiente: false },
+  { id: "U003", nombre: "María López",   usuario: "op1",    clave: "7c9c8333b00258b9b342bc5308dcceb5b0fe70a25491df25efdf790e958b767f", rol: "OPERARIO",   activo: true,  modulo: "Módulo A", hashPendiente: false },
+  { id: "U004", nombre: "Carlos Ruiz",   usuario: "op2",    clave: "7d96f664f9c8449fda87e1873780ab5d70400e7fc237feb23d78e88142a6d53e", rol: "OPERARIO",   activo: true,  modulo: "Módulo B", hashPendiente: false },
+  { id: "U005", nombre: "Ana García",    usuario: "op3",    clave: "ca1b5828d82b27cda94dccdae280731b627a6737502f2742961987273f7ab87b", rol: "OPERARIO",   activo: true,  modulo: "Módulo B", hashPendiente: false },
+  { id: "U006", nombre: "Luis Martínez", usuario: "op4",    clave: "5fe6e42818d733ebe6bc92c90fb1cd7a1d0b04c4b3c46cd5e48928a0dd285da3", rol: "OPERARIO",   activo: false, modulo: "Módulo C", hashPendiente: false },
 ];
 
 const OPERARIOS_INIT = [
@@ -3381,8 +3381,6 @@ export default function App() {
       return next;
     });
   }, []);
-
-  const registrarLog = async (accion, u) => {
     if (!u) return;
     const entrada = { ts: new Date().toLocaleTimeString("es-CO"), nombre: u.nombre, rol: u.rol, accion, epoch: Date.now() };
     // Hash simple de integridad
