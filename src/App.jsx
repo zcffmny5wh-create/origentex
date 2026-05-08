@@ -1955,7 +1955,19 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
               </button>
             )}
             {sesion?.id !== u.id && (
-              <button onClick={() => setUsuarios(prev => prev.map(x => x.id !== u.id ? x : { ...x, activo: !x.activo }))}
+              <button onClick={async () => {
+                const nuevoActivo = !u.activo;
+                setUsuarios(prev => prev.map(x => x.id !== u.id ? x : { ...x, activo: nuevoActivo }));
+                await supabase.from("usuarios").update({ activo: nuevoActivo }).eq("id", u.id);
+                if (u.auth_id) {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  await fetch("https://vsdlmymzrerhmitbjyki.supabase.co/functions/v1/admin-usuarios", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + session?.access_token },
+                    body: JSON.stringify({ accion: "toggle_activo", auth_id: u.auth_id, activo: nuevoActivo })
+                  });
+                }
+              }}
                 style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "4px 8px", cursor: "pointer" }}>
                 {u.activo ? "Desactivar" : "Activar"}
               </button>
