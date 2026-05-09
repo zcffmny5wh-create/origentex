@@ -3237,7 +3237,7 @@ export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [ordenes, setOrdenes] = useState(ORDENES_INIT);
   const [operarios, setOperarios] = useState(OPERARIOS_INIT);
-  const [usuarios, setUsuarios] = useState(USUARIOS_INIT);
+  const [usuarios, setUsuarios] = useState([]);
   const [asignaciones, setAsignaciones] = useState(ASIGNACIONES_INIT);
   const [mensajes, setMensajes] = useState([]);
   const [logActividad, setLogActividad] = useState([]);
