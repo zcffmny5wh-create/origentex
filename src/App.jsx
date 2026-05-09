@@ -3276,9 +3276,11 @@ export default function App() {
         if (rData?.length) setRegistrosGlobales(rData.map(r => ({ id: r.id, ts: r.ts, orden: r.orden, operacion: r.operacion, talla: r.talla, esParada: r.es_parada, esDefecto: r.es_defecto, tiempoReal: r.tiempo_real, sam: r.sam, usuarioId: r.usuario_id, nombre: r.nombre, modulo: r.modulo, motivo: r.motivo, afectaEf: r.afecta_ef, activa: r.activa, duracionMin: r.duracion_min })));
 
         setDbListo(true);
+        setListoParaUsar(true);
       } catch (e) {
         console.error("Error cargando datos:", e);
-        setDbListo(true); // Continuar con datos locales si falla
+        setDbListo(true);
+        setListoParaUsar(true);
       }
     };
     cargarDatos();
@@ -3306,6 +3308,7 @@ export default function App() {
 
   // Hash inicial de claves
   useEffect(() => {
+    if (!dbListo) return;
     const hashearUsuarios = async () => {
       const actualizados = await Promise.all(usuarios.map(async u => {
         if (!u.hashPendiente) return u;
@@ -3316,7 +3319,7 @@ export default function App() {
       setListoParaUsar(true);
     };
     hashearUsuarios();
-  }, []);
+  }, [dbListo]);
 
   useEffect(() => {
     const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CO")), 1000);
