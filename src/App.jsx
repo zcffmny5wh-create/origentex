@@ -3307,19 +3307,7 @@ export default function App() {
   const [ultimaActividad, setUltimaActividad] = useState(Date.now());
 
   // Hash inicial de claves
-  useEffect(() => {
-    if (!dbListo) return;
-    const hashearUsuarios = async () => {
-      const actualizados = await Promise.all(usuarios.map(async u => {
-        if (!u.hashPendiente) return u;
-        try { return { ...u, clave: await hashClave(u.clave, u.usuario), hashPendiente: false }; }
-        catch { return u; }
-      }));
-      setUsuarios(actualizados);
-      setListoParaUsar(true);
-    };
-    hashearUsuarios();
-  }, [dbListo]);
+
 
   useEffect(() => {
     const t = setInterval(() => setHora(new Date().toLocaleTimeString("es-CO")), 1000);
