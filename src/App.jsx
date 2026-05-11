@@ -46,24 +46,9 @@ const MOTIVOS_PARADA = [
 const TIPOS_DEFECTO = ["Costura abierta", "Medida incorrecta", "Tela defectuosa", "Mal ensamble", "Mancha", "Otro"];
 
 // ADVERTENCIA DE SEGURIDAD: Las claves iniciales están en texto plano solo para demo.
-// En producción conectar a Supabase Auth — nunca guardar claves en el código fuente.
-const USUARIOS_INIT = [
-  { id: "U001", nombre: "Gerente",       usuario: "admin",  clave: "d8e6c0806d00ae3b122629be6cdb743e9af1b4c01a0428b0cdf609f25032f239", rol: "ADMIN",      activo: true,  modulo: "",         hashPendiente: false },
-  { id: "U002", nombre: "Jefe de Piso",  usuario: "super1", clave: "70e0daa16c995420538f909d69f075db87b9e10349936e0b66e7c305e574ea10", rol: "SUPERVISOR", activo: true,  modulo: "Módulo A", hashPendiente: false },
-  { id: "U003", nombre: "María López",   usuario: "op1",    clave: "7c9c8333b00258b9b342bc5308dcceb5b0fe70a25491df25efdf790e958b767f", rol: "OPERARIO",   activo: true,  modulo: "Módulo A", hashPendiente: false },
-  { id: "U004", nombre: "Carlos Ruiz",   usuario: "op2",    clave: "7d96f664f9c8449fda87e1873780ab5d70400e7fc237feb23d78e88142a6d53e", rol: "OPERARIO",   activo: true,  modulo: "Módulo B", hashPendiente: false },
-  { id: "U005", nombre: "Ana García",    usuario: "op3",    clave: "ca1b5828d82b27cda94dccdae280731b627a6737502f2742961987273f7ab87b", rol: "OPERARIO",   activo: true,  modulo: "Módulo B", hashPendiente: false },
-  { id: "U006", nombre: "Luis Martínez", usuario: "op4",    clave: "5fe6e42818d733ebe6bc92c90fb1cd7a1d0b04c4b3c46cd5e48928a0dd285da3", rol: "OPERARIO",   activo: false, modulo: "Módulo C", hashPendiente: false },
-];
+const USUARIOS_INIT = [];
 
-const OPERARIOS_INIT = [
-  { id: 1, nombre: "María López",  maquina: "Fileteadora", turno: "Mañana", activo: true,  usuario: "op1" },
-  { id: 2, nombre: "Carlos Ruiz",  maquina: "Plana",       turno: "Mañana", activo: true,  usuario: "op2" },
-  { id: 3, nombre: "Ana García",   maquina: "Recubridora", turno: "Tarde",  activo: true,  usuario: "op3" },
-  { id: 4, nombre: "Luis Martínez",maquina: "Ojaladora",   turno: "Mañana", activo: false, usuario: "op4" },
-  { id: 5, nombre: "Rosa Herrera", maquina: "Botonera",    turno: "Tarde",  activo: true,  usuario: "" },
-  { id: 6, nombre: "Pedro Soto",   maquina: "Plana",       turno: "Mañana", activo: true,  usuario: "" },
-];
+const OPERARIOS_INIT = [];
 
 const ORDENES_INIT = [
   {
@@ -128,7 +113,7 @@ const ORDENES_INIT = [
   },
 ];
 
-const TALLAS_DISPONIBLES = ["XS", "S", "M", "L", "XL", "2XL"];
+const TALLAS_DISPONIBLES = ["Única", "XS", "S", "M", "L", "XL", "2XL"];
 
 const CATALOGO_INIT = [
   {
@@ -165,9 +150,7 @@ const CATALOGO_INIT = [
   },
 ];
 
-const ASIGNACIONES_INIT = [
-  { usuarioId: "U003", ordenId: "OP-2024-001", operaciones: ["Armado de bolsillos", "Costura de hombros"] },
-];
+const ASIGNACIONES_INIT = [];
 
 // ─── CONFIGURACIÓN DE HORARIOS ────────────────────────────────────────────────
 
@@ -939,7 +922,8 @@ const GestionOperarios = ({ operarios, setOperarios, ordenes, usuarios, asignaci
     setMsgForm(p => ({ ...p, texto: "" }));
   };
 
-  const TABS = [["piso","🏭 Piso en vivo"],["operarios","👷 Operarios"],["asignaciones","🎯 Asignaciones"],["mensajes","💬 Mensajes"]];
+  const esSupervisor = sesion?.rol === "SUPERVISOR" || sesion?.rol === "ADMIN";
+  const TABS = [["piso","🏭 Piso en vivo"],["operarios","👷 Operarios"],["mensajes","💬 Mensajes"], ...(esSupervisor ? [["asignaciones","🎯 Asignaciones"]] : [])];
   const INP = { background: "rgba(255,255,255,0.05)", border: "1px solid " + T.border, padding: "8px 10px", color: T.text, fontSize: 12, outline: "none", fontFamily: T.font, width: "100%", borderRadius: 6 };
 
   return (
@@ -1110,7 +1094,7 @@ const GestionOperarios = ({ operarios, setOperarios, ordenes, usuarios, asignaci
 
                 {/* Asignación rápida */}
                 <div style={{ borderTop: "1px solid " + T.faint, paddingTop: 8, display: "flex", gap: 6, alignItems: "center" }}>
-                  <select defaultValue={asig?.ordenId || ""} onChange={e => {
+                  <select defaultValue={asig?.ordenId || ""} disabled={!esSupervisor} onChange={e => {
                     setAsignaciones(prev => {
                       const sinEste = prev.filter(a => a.usuarioId !== u.id);
                       if (!e.target.value) return sinEste;
@@ -1118,7 +1102,7 @@ const GestionOperarios = ({ operarios, setOperarios, ordenes, usuarios, asignaci
                       setMensajes(prev => [{ id: Date.now(), texto: "Tu asignación cambió a " + (orden?.referencia || e.target.value) + ". Revisa tus operaciones.", destino: "operario", usuarioDest: u.id, de: sesion?.nombre || "Supervisor", leidoPor: [], ts: new Date().toLocaleTimeString("es-CO") }, ...prev]);
                       return [...sinEste, { usuarioId: u.id, ordenId: e.target.value, operaciones: asig?.operaciones || [] }];
                     });
-                  }} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "4px 8px", borderRadius: 6, cursor: "pointer", flex: 1 }}>
+                  }} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "4px 8px", borderRadius: 6, cursor: esSupervisor ? "pointer" : "default", flex: 1, opacity: esSupervisor ? 1 : 0.5 }}>
                     <option value="">Sin orden</option>
                     {ordenes.filter(o => o.estado !== "Completado").map(o => <option key={o.id} value={o.id}>{o.id} · {o.referencia}</option>)}
                   </select>
@@ -1179,13 +1163,21 @@ const GestionOperarios = ({ operarios, setOperarios, ordenes, usuarios, asignaci
       {tabLocal === "asignaciones" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>ASIGNACIONES OPERARIO → ORDEN → OPERACIONES</p>
-          {(usuarios || []).filter(u => u.rol === "OPERARIO" && u.activo).map(u => {
+          {(usuarios || []).filter(u => u.rol === "OPERARIO").map(u => {
             const asig = asignaciones?.find(a => a.usuarioId === u.id);
             return (
               <Glass key={u.id} style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <p style={{ fontSize: 14, fontWeight: 900, color: T.text, fontFamily: T.font }}>{u.nombre}</p>
-                  <Badge color="gray">{u.modulo}</Badge>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <Badge color="gray">{u.modulo}</Badge>
+                    {asig?.ordenId && (
+                      <button onClick={() => setAsignaciones(prev => prev.filter(a => a.usuarioId !== u.id))}
+                        style={{ background: "transparent", border: "1px solid " + T.red, color: T.red, fontFamily: T.mono, fontSize: 10, padding: "3px 8px", cursor: "pointer", borderRadius: 4 }}>
+                        ✕ Limpiar
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <select value={asig?.ordenId || ""} onChange={e => {
                   setAsignaciones(prev => {
@@ -1645,7 +1637,41 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
     });
   };
 
+  const [editandoIdx, setEditandoIdx] = useState(null);
+  const [editOpForm, setEditOpForm] = useState({ operacion: "", sam: "" });
+  const [draggingIdx, setDraggingIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
   const [errForm, setErrForm] = useState("");
+
+  const iniciarEditOp = (idx) => {
+    const op = form.operaciones[idx];
+    setEditandoIdx(idx);
+    setEditOpForm({ operacion: op.operacion, sam: String(op.sam) });
+  };
+
+  const guardarEditOp = (idx) => {
+    if (!editOpForm.operacion.trim() || !editOpForm.sam) return;
+    setForm(p => {
+      const ops = [...p.operaciones];
+      ops[idx] = { operacion: editOpForm.operacion.trim(), sam: parseFloat(editOpForm.sam) };
+      return { ...p, operaciones: ops };
+    });
+    setEditandoIdx(null);
+  };
+
+  const cancelarEditOp = () => setEditandoIdx(null);
+
+  const handleDrop = (targetIdx) => {
+    if (draggingIdx === null || draggingIdx === targetIdx) return;
+    setForm(p => {
+      const ops = [...p.operaciones];
+      const [item] = ops.splice(draggingIdx, 1);
+      ops.splice(targetIdx, 0, item);
+      return { ...p, operaciones: ops };
+    });
+    setDraggingIdx(null);
+    setDragOverIdx(null);
+  };
 
   const guardar = () => {
     if (!form.nombre.trim()) { setErrForm("Ingresa el nombre de la referencia"); return; }
@@ -1740,20 +1766,48 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {form.operaciones.map((op, idx) => (
-              <div key={idx} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid " + T.border, borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+              <div key={idx}
+                draggable={editandoIdx !== idx}
+                onDragStart={() => { setDraggingIdx(idx); setDragOverIdx(null); }}
+                onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
+                onDrop={() => handleDrop(idx)}
+                onDragEnd={() => { setDraggingIdx(null); setDragOverIdx(null); }}
+                style={{
+                  background: dragOverIdx === idx ? "rgba(255,230,0,0.08)" : "rgba(255,255,255,0.03)",
+                  border: "1px solid " + (dragOverIdx === idx ? T.yellow : editandoIdx === idx ? T.yellow : T.border),
+                  borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8,
+                  opacity: draggingIdx === idx ? 0.4 : 1,
+                  transition: "opacity 0.15s, border-color 0.15s, background 0.15s",
+                }}>
+                <span style={{ fontSize: 14, color: T.faint, cursor: editandoIdx === idx ? "default" : "grab", userSelect: "none", paddingRight: 2 }}>⠿</span>
                 <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, width: 20, textAlign: "center" }}>{idx + 1}</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: T.font }}>{op.operacion}</p>
-                  <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM: {op.sam} min</p>
-                </div>
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => moverOp(idx, -1)} disabled={idx === 0}
-                    style={{ background: "transparent", border: "1px solid " + T.border, color: idx === 0 ? T.faint : T.muted, borderRadius: 6, width: 28, height: 28, cursor: idx === 0 ? "default" : "pointer", fontSize: 12 }}>↑</button>
-                  <button onClick={() => moverOp(idx, 1)} disabled={idx === form.operaciones.length - 1}
-                    style={{ background: "transparent", border: "1px solid " + T.border, color: idx === form.operaciones.length - 1 ? T.faint : T.muted, borderRadius: 6, width: 28, height: 28, cursor: idx === form.operaciones.length - 1 ? "default" : "pointer", fontSize: 12 }}>↓</button>
-                  <button onClick={() => setForm(p => ({ ...p, operaciones: p.operaciones.filter((_, i) => i !== idx) }))}
-                    style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.3)", color: T.red, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
-                </div>
+                {editandoIdx === idx ? (
+                  <div style={{ flex: 1, display: "flex", gap: 6 }}>
+                    <input value={editOpForm.operacion} onChange={e => setEditOpForm(p => ({ ...p, operacion: e.target.value }))}
+                      onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)}
+                      style={{ ...INP, flex: 3, padding: "4px 8px", fontSize: 12 }} maxLength={80} autoFocus />
+                    <input type="number" value={editOpForm.sam} onChange={e => setEditOpForm(p => ({ ...p, sam: e.target.value }))}
+                      onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)}
+                      placeholder="SAM" min={0.1} step={0.1} style={{ ...INP, flex: 1, padding: "4px 8px", fontSize: 12 }} />
+                    <button onClick={() => guardarEditOp(idx)}
+                      style={{ background: T.green, color: "#000", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13, fontWeight: 900 }}>✓</button>
+                    <button onClick={cancelarEditOp}
+                      style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: T.font }}>{op.operacion}</p>
+                      <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM: {op.sam} min</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => iniciarEditOp(idx)}
+                        style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 11 }}>✎</button>
+                      <button onClick={() => setForm(p => ({ ...p, operaciones: p.operaciones.filter((_, i) => i !== idx) }))}
+                        style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.3)", color: T.red, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
             <div style={{ background: "rgba(255,230,0,0.06)", border: "1px solid rgba(255,230,0,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", justifyContent: "space-between" }}>
@@ -1838,6 +1892,13 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
   const [resetandoClave, setResetandoClave] = useState(null);
   const [nuevaClave, setNuevaClave] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmEliminar, setConfirmEliminar] = useState(null);
+
+  const eliminar = async (id) => {
+    const { error } = await supabase.from("usuarios").delete().eq("id", id);
+    if (!error) setUsuarios(prev => prev.filter(u => u.id !== id));
+    setConfirmEliminar(null);
+  };
 
   const abrir = (u = null) => {
     setForm(u ? { nombre: u.nombre, usuario: u.usuario, clave: "", rol: u.rol, modulo: u.modulo || "" } : { nombre: "", usuario: "", clave: "", rol: "OPERARIO", modulo: "" });
@@ -1849,7 +1910,6 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
   const guardar = async () => {
     if (!form.nombre.trim()) { setErr("Nombre requerido"); return; }
     if (!form.usuario.trim()) { setErr("Usuario requerido"); return; }
-    // Al editar, la clave es opcional — si está vacía se mantiene la actual
     if (!editId && (!form.clave.trim() || form.clave.length < 4)) { setErr("Clave mínimo 4 caracteres"); return; }
     if (editId && form.clave.trim() && form.clave.length < 4) { setErr("Clave mínimo 4 caracteres"); return; }
     const u = sanitizar(form.usuario);
@@ -1857,10 +1917,17 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
     if (editId) {
       const usuarioActual = usuarios.find(x => x.id === editId);
       const nuevaClaveHash = form.clave.trim() ? await hashClave(sanitizar(form.clave), u) : usuarioActual?.clave;
-      setUsuarios(prev => prev.map(x => x.id !== editId ? x : { ...x, nombre: sanitizar(form.nombre), usuario: u, clave: nuevaClaveHash, rol: form.rol, modulo: form.modulo, hashPendiente: false }));
+      const campos = { nombre: sanitizar(form.nombre), usuario: u, clave: nuevaClaveHash, rol: form.rol, modulo: form.modulo };
+      const { error } = await supabase.from("usuarios").update(campos).eq("id", editId);
+      if (error) { setErr("Error al guardar: " + error.message); return; }
+      setUsuarios(prev => prev.map(x => x.id !== editId ? x : { ...x, ...campos, hashPendiente: false }));
     } else {
       const hash = await hashClave(sanitizar(form.clave), u);
-      setUsuarios(prev => [...prev, { id: "U" + Date.now(), nombre: sanitizar(form.nombre), usuario: u, clave: hash, rol: form.rol, modulo: form.modulo, activo: true, hashPendiente: false }]);
+      const id = "U" + Date.now();
+      const nuevoUsuario = { id, nombre: sanitizar(form.nombre), usuario: u, clave: hash, rol: form.rol, modulo: form.modulo, activo: true, hashPendiente: false };
+      const { error } = await supabase.from("usuarios").insert({ id, nombre: nuevoUsuario.nombre, usuario: u, clave: hash, rol: form.rol, modulo: form.modulo, activo: true });
+      if (error) { setErr("Error al guardar: " + error.message); return; }
+      setUsuarios(prev => [...prev, nuevoUsuario]);
     }
     setShowForm(false);
   };
@@ -1976,6 +2043,25 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
               style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "4px 8px", cursor: "pointer" }}>
               Editar
             </button>
+            {sesion?.id !== u.id && sesion?.rol === "ADMIN" && (
+              confirmEliminar === u.id ? (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => eliminar(u.id)}
+                    style={{ background: T.red, border: "none", color: "#fff", fontFamily: T.mono, fontSize: 10, padding: "4px 8px", cursor: "pointer", borderRadius: 4 }}>
+                    ¿Confirmar?
+                  </button>
+                  <button onClick={() => setConfirmEliminar(null)}
+                    style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "4px 8px", cursor: "pointer" }}>
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmEliminar(u.id)}
+                  style={{ background: "transparent", border: "1px solid " + T.red, color: T.red, fontFamily: T.mono, fontSize: 10, padding: "4px 8px", cursor: "pointer" }}>
+                  Eliminar
+                </button>
+              )
+            )}
           </div>
         </Glass>
       ))}
@@ -3238,7 +3324,7 @@ export default function App() {
   const [ordenes, setOrdenes] = useState(ORDENES_INIT);
   const [operarios, setOperarios] = useState(OPERARIOS_INIT);
   const [usuarios, setUsuarios] = useState(USUARIOS_INIT);
-  const [asignaciones, setAsignaciones] = useState(ASIGNACIONES_INIT);
+  const [asignaciones, setAsignaciones] = useState([]);
   const [mensajes, setMensajes] = useState([]);
   const [logActividad, setLogActividad] = useState([]);
   const [registrosGlobales, setRegistrosGlobales] = useState([]);
@@ -3298,6 +3384,24 @@ export default function App() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "registros" }, payload => {
         const r = payload.new;
         setRegistrosGlobales(prev => prev.map(x => x.id === r.id ? { ...x, activa: r.activa, duracionMin: r.duracion_min } : x));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "usuarios" }, payload => {
+        if (payload.eventType === "DELETE") {
+          setUsuarios(prev => prev.filter(u => u.id !== payload.old.id));
+        } else {
+          const u = payload.new;
+          const usr = { id: u.id, nombre: u.nombre, usuario: u.usuario, clave: u.clave, rol: u.rol, modulo: u.modulo || "", activo: u.activo, hashPendiente: false };
+          setUsuarios(prev => prev.some(x => x.id === usr.id) ? prev.map(x => x.id === usr.id ? usr : x) : [...prev, usr]);
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "asignaciones" }, payload => {
+        if (payload.eventType === "DELETE") {
+          setAsignaciones(prev => prev.filter(a => a.usuarioId !== payload.old.usuario_id));
+        } else {
+          const a = payload.new;
+          const asig = { usuarioId: a.usuario_id, ordenId: a.orden_id, operaciones: a.operaciones || [] };
+          setAsignaciones(prev => prev.some(x => x.usuarioId === asig.usuarioId) ? prev.map(x => x.usuarioId === asig.usuarioId ? asig : x) : [...prev, asig]);
+        }
       })
       .subscribe();
     return () => supabase.removeChannel(canal);
@@ -3376,6 +3480,7 @@ export default function App() {
       return next;
     });
   }, []);
+
 
   const registrarLog = async (accion, u) => {
     if (!u) return;
