@@ -21,6 +21,11 @@ const INACTIVIDAD_MS = 30 * 60 * 1000;
 const getBloqueos = () => { try { return JSON.parse(localStorage.getItem("otx_bloqueos") || "{}"); } catch { return {}; } };
 const setBloqueos = (b) => { try { localStorage.setItem("otx_bloqueos", JSON.stringify(b)); } catch {} };
 
+// ─── ADMIN PREDEFINIDO ────────────────────────────────────────────────────────
+
+const ADMIN_ROOT = { id: "admin_root", nombre: "Administrador", usuario: "admin", rol: "ADMIN", modulo: "", activo: true, hashPendiente: false };
+const ADMIN_ROOT_CLAVE = "origen2026*";
+
 // ─── ROLES ────────────────────────────────────────────────────────────────────
 
 const ROLES = {
@@ -455,19 +460,23 @@ const Login = ({ usuarios, onLogin }) => {
     if (!u || !c) { setError("Completa todos los campos"); return; }
     setCargando(true);
     try {
-      const email = u + "@origentex.com";
-      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password: c });
-      if (authError || !data.user) {
-        setError("Usuario o clave incorrectos.");
+      // Admin predefinido
+      const hashRoot = await hashClave(ADMIN_ROOT_CLAVE, ADMIN_ROOT.usuario);
+      if (u === ADMIN_ROOT.usuario && await hashClave(c, ADMIN_ROOT.usuario) === hashRoot) {
+        onLogin(ADMIN_ROOT);
         return;
       }
-      const found = usuarios.find(x => x.usuario === u && x.activo);
-      if (!found) {
-        await supabase.auth.signOut();
-        setError("Usuario inactivo o no encontrado.");
-        return;
+
+      // Usuarios de Supabase — buscar por username (case-insensitive), hash con el username guardado
+      const candidato = usuarios.find(x => x.usuario.toLowerCase() === u && x.activo);
+      if (candidato) {
+        const hashCheck = await hashClave(c, candidato.usuario);
+        if (candidato.clave === hashCheck) {
+          onLogin(candidato);
+          return;
+        }
       }
-      onLogin(found);
+      setError("Usuario o clave incorrectos.");
     } catch(e) {
       setError("Error de conexión. Intenta de nuevo.");
     } finally { setCargando(false); }
@@ -488,11 +497,11 @@ const Login = ({ usuarios, onLogin }) => {
         <Glass style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
             <label style={{ fontSize: 9, color: T.muted, fontFamily: "monospace", letterSpacing: "0.14em", display: "block", marginBottom: 6 }}>USUARIO</label>
-            <input value={usuario} onChange={e => setUsuario(e.target.value)} onKeyDown={e => e.key === "Enter" && intentar()} placeholder="Tu usuario" style={INP} />
+            <input value={usuario} onChange={e => setUsuario(e.target.value)} onKeyDown={e => e.key === "Enter" && intentar()} placeholder="Tu usuario" style={INP} autoComplete="username" />
           </div>
           <div>
             <label style={{ fontSize: 9, color: T.muted, fontFamily: "monospace", letterSpacing: "0.14em", display: "block", marginBottom: 6 }}>CLAVE</label>
-            <input type="password" value={clave} onChange={e => setClave(e.target.value)} onKeyDown={e => e.key === "Enter" && intentar()} placeholder="••••" style={INP} />
+            <input type="password" value={clave} onChange={e => setClave(e.target.value)} onKeyDown={e => e.key === "Enter" && intentar()} placeholder="••••" style={INP} autoComplete="current-password" />
           </div>
           {error && <p style={{ color: T.red, fontSize: 12, fontFamily: "monospace", textAlign: "center" }}>⚠ {error}</p>}
           <button onClick={intentar} disabled={cargando} style={{ padding: "16px 0", background: cargando ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, " + T.green + ", " + T.cyan + ")", color: cargando ? T.muted : "#000", border: "none", fontSize: 16, fontWeight: 900, fontFamily: "'Barlow Condensed', Arial", letterSpacing: "0.12em", cursor: cargando ? "default" : "pointer", borderRadius: 10 }}>
@@ -1892,6 +1901,7 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
   const [resetandoClave, setResetandoClave] = useState(null);
   const [nuevaClave, setNuevaClave] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resetErr, setResetErr] = useState("");
   const [confirmEliminar, setConfirmEliminar] = useState(null);
 
   const eliminar = async (id) => {
@@ -1912,7 +1922,7 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
     if (!form.usuario.trim()) { setErr("Usuario requerido"); return; }
     if (!editId && (!form.clave.trim() || form.clave.length < 4)) { setErr("Clave mínimo 4 caracteres"); return; }
     if (editId && form.clave.trim() && form.clave.length < 4) { setErr("Clave mínimo 4 caracteres"); return; }
-    const u = sanitizar(form.usuario);
+    const u = sanitizar(form.usuario).toLowerCase();
     if (!editId && usuarios.find(x => x.usuario === u)) { setErr("Usuario ya existe"); return; }
     if (editId) {
       const usuarioActual = usuarios.find(x => x.id === editId);
@@ -1936,10 +1946,14 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
     if (!nuevaClave.trim() || nuevaClave.length < 4) return;
     const u = usuarios.find(x => x.id === resetandoClave);
     if (!u) return;
+    setResetErr("");
     const hash = await hashClave(sanitizar(nuevaClave), u.usuario);
-    setUsuarios(prev => prev.map(x => x.id !== resetandoClave ? x : { ...x, clave: hash, hashPendiente: false }));
+    const { error } = await supabase.from("usuarios").update({ clave: hash }).eq("id", u.id);
+    if (error) { setResetErr("Error: " + error.message); return; }
+    setUsuarios(prev => prev.map(x => x.id !== resetandoClave ? x : { ...x, clave: hash }));
     setResetandoClave(null);
     setNuevaClave("");
+    setResetErr("");
     setConfirmReset(true);
     setTimeout(() => setConfirmReset(false), 3000);
   };
@@ -1987,14 +2001,15 @@ const GestionUsuarios = ({ usuarios, setUsuarios, sesion }) => {
       {resetandoClave && (
         <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10, border: "1px solid " + T.yellow }}>
           <p style={{ fontSize: 11, color: T.yellow, fontFamily: T.mono }}>🔑 RESETEAR CLAVE — {usuarios.find(u => u.id === resetandoClave)?.nombre}</p>
-          <input type="password" placeholder="Nueva clave (mínimo 4 caracteres)" value={nuevaClave} onChange={e => setNuevaClave(e.target.value)}
+          <input type="password" placeholder="Nueva clave (mínimo 4 caracteres)" value={nuevaClave} onChange={e => { setNuevaClave(e.target.value); setResetErr(""); }}
             onKeyDown={e => e.key === "Enter" && resetClave()} style={INP} autoFocus />
+          {resetErr && <p style={{ color: T.red, fontSize: 11, fontFamily: T.mono }}>⚠ {resetErr}</p>}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={resetClave} disabled={nuevaClave.length < 4}
               style={{ flex: 1, padding: "10px 0", background: nuevaClave.length >= 4 ? T.yellow : "rgba(255,255,255,0.05)", color: nuevaClave.length >= 4 ? "#000" : T.muted, border: "none", fontFamily: T.mono, fontWeight: 900, cursor: "pointer" }}>
               CONFIRMAR RESET
             </button>
-            <button onClick={() => { setResetandoClave(null); setNuevaClave(""); }}
+            <button onClick={() => { setResetandoClave(null); setNuevaClave(""); setResetErr(""); }}
               style={{ padding: "10px 16px", background: "transparent", color: T.muted, border: "1px solid " + T.border, fontFamily: T.mono, cursor: "pointer" }}>
               CANCELAR
             </button>
@@ -3500,9 +3515,8 @@ export default function App() {
     registrarLog("INICIO DE SESIÓN", u);
   };
 
-  const cerrarSesion = async () => {
+  const cerrarSesion = () => {
     if (sesion) registrarLog("CIERRE DE SESIÓN", sesion);
-    await supabase.auth.signOut();
     setSesion(null);
     setTab("dashboard");
   };
