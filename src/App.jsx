@@ -1615,12 +1615,15 @@ const AdminHome = ({ setTab, ordenes, operarios, usuarios, registrosGlobales, lo
 
 
 
-const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
+const GestionCatalogo = ({ catalogo, setCatalogo, maquinas = [], setMaquinas, sesion }) => {
   const [vista, setVista] = useState("lista");
   const [refSel, setRefSel] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ nombre: "", descripcion: "", tallas: [], operaciones: [] });
-  const [opForm, setOpForm] = useState({ operacion: "", sam: "" });
+  const [opForm, setOpForm] = useState({ operacion: "", sam: "", maquina: "" });
+  const [nuevaMaquinaInput, setNuevaMaquinaInput] = useState("");
+  const [showNuevaMaquina, setShowNuevaMaquina] = useState(false);
+  const [guardandoMaquina, setGuardandoMaquina] = useState(false);
   const [buscar, setBuscar] = useState("");
 
   const INP = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "8px 10px", color: T.text, fontSize: 13, outline: "none", fontFamily: T.font, width: "100%", borderRadius: 6 };
@@ -1632,8 +1635,24 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
 
   const agregarOp = () => {
     if (!opForm.operacion.trim() || !opForm.sam) return;
-    setForm(p => ({ ...p, operaciones: [...p.operaciones, { operacion: opForm.operacion.trim(), sam: parseFloat(opForm.sam) }] }));
-    setOpForm({ operacion: "", sam: "" });
+    setForm(p => ({ ...p, operaciones: [...p.operaciones, { operacion: opForm.operacion.trim(), sam: parseFloat(opForm.sam), maquina: opForm.maquina }] }));
+    setOpForm({ operacion: "", sam: "", maquina: "" });
+    setShowNuevaMaquina(false);
+    setNuevaMaquinaInput("");
+  };
+
+  const guardarNuevaMaquina = async () => {
+    const nombre = nuevaMaquinaInput.trim();
+    if (!nombre) return;
+    setGuardandoMaquina(true);
+    const { data, error } = await supabase.from("maquinas").insert({ nombre }).select().single();
+    if (!error && data) {
+      setMaquinas(prev => [...prev, { id: data.id, nombre: data.nombre }]);
+      setOpForm(p => ({ ...p, maquina: data.nombre }));
+    }
+    setNuevaMaquinaInput("");
+    setShowNuevaMaquina(false);
+    setGuardandoMaquina(false);
   };
 
   const moverOp = (idx, dir) => {
@@ -1647,7 +1666,7 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
   };
 
   const [editandoIdx, setEditandoIdx] = useState(null);
-  const [editOpForm, setEditOpForm] = useState({ operacion: "", sam: "" });
+  const [editOpForm, setEditOpForm] = useState({ operacion: "", sam: "", maquina: "" });
   const [draggingIdx, setDraggingIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const [errForm, setErrForm] = useState("");
@@ -1655,14 +1674,14 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
   const iniciarEditOp = (idx) => {
     const op = form.operaciones[idx];
     setEditandoIdx(idx);
-    setEditOpForm({ operacion: op.operacion, sam: String(op.sam) });
+    setEditOpForm({ operacion: op.operacion, sam: String(op.sam), maquina: op.maquina || "" });
   };
 
   const guardarEditOp = (idx) => {
     if (!editOpForm.operacion.trim() || !editOpForm.sam) return;
     setForm(p => {
       const ops = [...p.operaciones];
-      ops[idx] = { operacion: editOpForm.operacion.trim(), sam: parseFloat(editOpForm.sam) };
+      ops[idx] = { operacion: editOpForm.operacion.trim(), sam: parseFloat(editOpForm.sam), maquina: editOpForm.maquina };
       return { ...p, operaciones: ops };
     });
     setEditandoIdx(null);
@@ -1751,23 +1770,49 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
         <p style={{ fontSize: 11, color: T.yellow, fontFamily: T.mono, letterSpacing: "0.12em" }}>SECUENCIA DE OPERACIONES</p>
 
         {/* Agregar operación */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 3 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ flex: 3, minWidth: 140 }}>
             <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>NOMBRE DE LA OPERACIÓN</p>
             <input value={opForm.operacion} onChange={e => setOpForm(p => ({ ...p, operacion: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && agregarOp()}
               placeholder="Ej: Costura de hombros" style={INP} maxLength={80} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 80 }}>
             <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>SAM (min)</p>
             <input type="number" value={opForm.sam} onChange={e => setOpForm(p => ({ ...p, sam: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && agregarOp()}
               placeholder="0.0" min={0.1} step={0.1} style={INP} />
           </div>
+          <div style={{ flex: 2, minWidth: 120 }}>
+            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>MÁQUINA</p>
+            <select value={opForm.maquina} onChange={e => {
+              if (e.target.value === "__nueva__") { setShowNuevaMaquina(true); }
+              else { setOpForm(p => ({ ...p, maquina: e.target.value })); setShowNuevaMaquina(false); }
+            }} style={{ ...INP, boxSizing: "border-box" }}>
+              <option value="">— Sin máquina —</option>
+              {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre}</option>)}
+              <option value="__nueva__">+ Nueva máquina</option>
+            </select>
+          </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
             <button onClick={agregarOp} style={{ padding: "8px 16px", background: T.green, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 13, cursor: "pointer" }}>+</button>
           </div>
         </div>
+        {showNuevaMaquina && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", background: "rgba(0,255,136,0.05)", border: "1px solid rgba(0,255,136,0.2)", borderRadius: 8, padding: "10px 12px" }}>
+            <input value={nuevaMaquinaInput} onChange={e => setNuevaMaquinaInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && guardarNuevaMaquina()}
+              placeholder="Nombre de la nueva máquina" style={{ ...INP, flex: 1, boxSizing: "border-box" }} autoFocus />
+            <button onClick={guardarNuevaMaquina} disabled={guardandoMaquina}
+              style={{ padding: "8px 14px", background: T.green, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 12, cursor: "pointer" }}>
+              {guardandoMaquina ? "..." : "GUARDAR"}
+            </button>
+            <button onClick={() => { setShowNuevaMaquina(false); setNuevaMaquinaInput(""); }}
+              style={{ padding: "8px 12px", background: "transparent", border: "1px solid " + T.border, color: T.muted, borderRadius: 6, fontFamily: T.mono, fontSize: 12, cursor: "pointer" }}>
+              CANCELAR
+            </button>
+          </div>
+        )}
 
         {/* Lista de operaciones */}
         {form.operaciones.length === 0 ? (
@@ -1791,13 +1836,18 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
                 <span style={{ fontSize: 14, color: T.faint, cursor: editandoIdx === idx ? "default" : "grab", userSelect: "none", paddingRight: 2 }}>⠿</span>
                 <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, width: 20, textAlign: "center" }}>{idx + 1}</span>
                 {editandoIdx === idx ? (
-                  <div style={{ flex: 1, display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1, display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <input value={editOpForm.operacion} onChange={e => setEditOpForm(p => ({ ...p, operacion: e.target.value }))}
                       onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)}
-                      style={{ ...INP, flex: 3, padding: "4px 8px", fontSize: 12 }} maxLength={80} autoFocus />
+                      style={{ ...INP, flex: 3, minWidth: 100, padding: "4px 8px", fontSize: 12, boxSizing: "border-box" }} maxLength={80} autoFocus />
                     <input type="number" value={editOpForm.sam} onChange={e => setEditOpForm(p => ({ ...p, sam: e.target.value }))}
                       onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)}
-                      placeholder="SAM" min={0.1} step={0.1} style={{ ...INP, flex: 1, padding: "4px 8px", fontSize: 12 }} />
+                      placeholder="SAM" min={0.1} step={0.1} style={{ ...INP, flex: 1, minWidth: 60, padding: "4px 8px", fontSize: 12, boxSizing: "border-box" }} />
+                    <select value={editOpForm.maquina} onChange={e => setEditOpForm(p => ({ ...p, maquina: e.target.value }))}
+                      style={{ ...INP, flex: 2, minWidth: 100, padding: "4px 8px", fontSize: 12, boxSizing: "border-box" }}>
+                      <option value="">— Sin máquina —</option>
+                      {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre}</option>)}
+                    </select>
                     <button onClick={() => guardarEditOp(idx)}
                       style={{ background: T.green, color: "#000", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13, fontWeight: 900 }}>✓</button>
                     <button onClick={cancelarEditOp}
@@ -1807,7 +1857,10 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
                   <>
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: T.font }}>{op.operacion}</p>
-                      <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM: {op.sam} min</p>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM: {op.sam} min</p>
+                        {op.maquina && <p style={{ fontSize: 10, color: T.cyan, fontFamily: T.mono }}>⚙ {op.maquina}</p>}
+                      </div>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button onClick={() => iniciarEditOp(idx)}
@@ -1870,6 +1923,7 @@ const GestionCatalogo = ({ catalogo, setCatalogo, sesion }) => {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, width: 16 }}>{String(i + 1).padStart(2, "0")}</span>
                   <span style={{ fontSize: 12, color: T.text, fontFamily: T.font }}>{op.operacion}</span>
+                  {op.maquina && <span style={{ fontSize: 10, color: T.cyan, fontFamily: T.mono }}>⚙ {op.maquina}</span>}
                 </div>
                 <span style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>{op.sam}min</span>
               </div>
@@ -3345,6 +3399,7 @@ export default function App() {
   const [registrosGlobales, setRegistrosGlobales] = useState([]);
   const [horarios, setHorarios] = useState(HORARIOS_INIT);
   const [catalogo, setCatalogo] = useState(CATALOGO_INIT);
+  const [maquinas, setMaquinas] = useState([]);
   const [dbListo, setDbListo] = useState(false);
 
   // ─── CARGA INICIAL DESDE SUPABASE ─────────────────────────────────────────
@@ -3362,6 +3417,10 @@ export default function App() {
         // Catálogo
         const { data: cData } = await supabase.from("catalogo").select("*");
         if (cData?.length) setCatalogo(cData.map(c => ({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas || [], operaciones: c.operaciones || [] })));
+
+        // Máquinas
+        const { data: mData } = await supabase.from("maquinas").select("*").order("id");
+        if (mData?.length) setMaquinas(mData.map(m => ({ id: m.id, nombre: m.nombre })));
 
         // Asignaciones
         const { data: aData } = await supabase.from("asignaciones").select("*");
@@ -3634,7 +3693,7 @@ export default function App() {
         {tab === "inicio"     && <AdminHome setTab={setTab} ordenes={ordenes} operarios={operarios} usuarios={usuarios} registrosGlobales={registrosGlobales} logActividad={logActividad} sesion={sesion} />}
         {tab === "dashboard"  && <Dashboard ordenes={ordenes} operarios={operarios} registrosGlobales={registrosGlobales} usuarios={usuarios} asignaciones={asignaciones} horarios={horarios} />}
         {tab === "ordenes"    && <GestionOrdenes ordenes={ordenes} setOrdenes={setOrdenesSync} operarios={operarios} catalogo={catalogo} />}
-        {tab === "catalogo"   && <GestionCatalogo catalogo={catalogo} setCatalogo={setCatalogoSync} sesion={sesion} />}
+        {tab === "catalogo"   && <GestionCatalogo catalogo={catalogo} setCatalogo={setCatalogoSync} maquinas={maquinas} setMaquinas={setMaquinas} sesion={sesion} />}
         {tab === "operarios"  && <GestionOperarios operarios={operarios} setOperarios={setOperarios} ordenes={ordenes} usuarios={usuarios} asignaciones={asignaciones} setAsignaciones={setAsignacionesSync} mensajes={mensajes} setMensajes={setMensajes} sesion={sesion} registrosGlobales={registrosGlobales} horarios={horarios} setHorarios={setHorariosSync} />}
         {tab === "eficiencia" && <Eficiencia ordenes={ordenes} operarios={operarios} registrosGlobales={registrosGlobales} usuarios={usuarios} />}
         {tab === "horarios"   && <ConfigHorarios horarios={horarios} setHorarios={setHorariosSync} sesion={sesion} />}
