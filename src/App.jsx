@@ -1625,6 +1625,13 @@ const GestionCatalogo = ({ catalogo, setCatalogo, maquinas = [], setMaquinas, se
   const [showNuevaMaquina, setShowNuevaMaquina] = useState(false);
   const [guardandoMaquina, setGuardandoMaquina] = useState(false);
   const [buscar, setBuscar] = useState("");
+  const [confirmarEliminarId, setConfirmarEliminarId] = useState(null);
+
+  const eliminarRef = async (id) => {
+    await supabase.from("catalogo").delete().eq("id", id);
+    setCatalogo(prev => prev.filter(r => r.id !== id));
+    setConfirmarEliminarId(null);
+  };
 
   const INP = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "8px 10px", color: T.text, fontSize: 13, outline: "none", fontFamily: T.font, width: "100%", borderRadius: 6 };
 
@@ -1905,10 +1912,32 @@ const GestionCatalogo = ({ catalogo, setCatalogo, maquinas = [], setMaquinas, se
               <p style={{ fontSize: 16, fontWeight: 900, color: T.text, fontFamily: T.font }}>{ref.nombre}</p>
               <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{ref.descripcion}</p>
             </div>
-            <button onClick={() => editarRef(ref)}
-              style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>
-              EDITAR
-            </button>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {confirmarEliminarId === ref.id ? (
+                <>
+                  <span style={{ fontSize: 10, color: T.red, fontFamily: T.mono }}>¿Eliminar?</span>
+                  <button onClick={() => eliminarRef(ref.id)}
+                    style={{ background: T.red, color: "#fff", border: "none", fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6, fontWeight: 900 }}>
+                    SÍ
+                  </button>
+                  <button onClick={() => setConfirmarEliminarId(null)}
+                    style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6 }}>
+                    NO
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => editarRef(ref)}
+                    style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>
+                    EDITAR
+                  </button>
+                  <button onClick={() => setConfirmarEliminarId(ref.id)}
+                    style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.4)", color: T.red, fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>
+                    ELIMINAR
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Tallas */}
