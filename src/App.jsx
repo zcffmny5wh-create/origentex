@@ -2410,6 +2410,7 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
   const [descansoActual, setDescansoActual] = useState(null);
   const [segsDescanso, setSegsDescanso] = useState(0);
   const [descansoCompletadoInicio, setDescansoCompletadoInicio] = useState(null);
+  const [confirmarVolver, setConfirmarVolver] = useState(false);
 
   // Derivados
   const operacionSel = operacionActiva || "";
@@ -2805,22 +2806,38 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
             {String(Math.floor(segsDescanso / 60)).padStart(2, "0")}:{String(segsDescanso % 60).padStart(2, "0")}
           </p>
           <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{segsDescanso <= 0 ? "Tiempo completado" : "Tiempo restante de descanso"}</p>
-          <button onClick={() => {
-            const tardanza = segsDescanso < 0 ? Math.abs(Math.round(segsDescanso / 60)) : 0;
-            if (tardanza > 0) {
-              const reg = { id: Date.now(), ts: new Date().toLocaleTimeString("es-CO"), motivo: "Retorno tarde de " + descansoActual.nombre + " (" + tardanza + "min)", esParada: true, afectaEf: true, activa: false, tsFin: Date.now(), duracionMin: tardanza, usuarioId: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
-              setRegistros(prev => [reg, ...prev]);
-              if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
-            }
-            setDescansoCompletadoInicio(descansoActual.inicio);
-            setEstadoDescanso(null);
-            setDescansoActual(null);
-            setCronIniciado(false);
-            setCronSeg(0);
-          }}
-            style={{ background: segsDescanso <= 0 ? T.green : "rgba(255,255,255,0.08)", color: segsDescanso <= 0 ? "#000" : T.text, border: "1px solid " + (segsDescanso <= 0 ? T.green : T.border), borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: "pointer" }}>
-            VOLVER AL TURNO
-          </button>
+          {confirmarVolver ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ fontSize: 13, color: T.yellow, fontFamily: T.mono, textAlign: "center" }}>¿Confirmas que vas a volver al turno?</p>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => {
+                  const tardanza = segsDescanso < 0 ? Math.abs(Math.round(segsDescanso / 60)) : 0;
+                  if (tardanza > 0) {
+                    const reg = { id: Date.now(), ts: new Date().toLocaleTimeString("es-CO"), motivo: "Retorno tarde de " + descansoActual.nombre + " (" + tardanza + "min)", esParada: true, afectaEf: true, activa: false, tsFin: Date.now(), duracionMin: tardanza, usuarioId: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
+                    setRegistros(prev => [reg, ...prev]);
+                    if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
+                  }
+                  setDescansoCompletadoInicio(descansoActual.inicio);
+                  setEstadoDescanso(null);
+                  setDescansoActual(null);
+                  setCronIniciado(false);
+                  setCronSeg(0);
+                  setConfirmarVolver(false);
+                }} style={{ flex: 1, background: T.green, color: "#000", border: "none", borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: "pointer" }}>
+                  SÍ, VOLVER
+                </button>
+                <button onClick={() => setConfirmarVolver(false)}
+                  style={{ flex: 1, background: "rgba(255,255,255,0.06)", color: T.text, border: "1px solid " + T.border, borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: "pointer" }}>
+                  CANCELAR
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmarVolver(true)}
+              style={{ background: segsDescanso <= 0 ? T.green : "rgba(255,255,255,0.08)", color: segsDescanso <= 0 ? "#000" : T.text, border: "1px solid " + (segsDescanso <= 0 ? T.green : T.border), borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: "pointer" }}>
+              VOLVER AL TURNO
+            </button>
+          )}
         </div>
       )}
 
