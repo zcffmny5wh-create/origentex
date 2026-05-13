@@ -2406,9 +2406,10 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
   const [configSonido, setConfigSonido] = useState(true);
 
   // Descansos
-  const [estadoDescanso, setEstadoDescanso] = useState(null); // null | "aviso" | "activo" | "pausado"
+  const [estadoDescanso, setEstadoDescanso] = useState(null); // null | "aviso" | "pausado"
   const [descansoActual, setDescansoActual] = useState(null);
   const [segsDescanso, setSegsDescanso] = useState(0);
+  const [descansoCompletadoInicio, setDescansoCompletadoInicio] = useState(null);
 
   // Derivados
   const operacionSel = operacionActiva || "";
@@ -2484,29 +2485,35 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
     if (!horarios) return;
     const check = () => {
       const desc = detectarDescanso(horarios, moduloSel);
-      if (desc?.estado === "aviso" && estadoDescanso !== "aviso" && estadoDescanso !== "pausado") {
+      if (!desc) {
+        // Fuera de ventana de descanso — limpiar todo
+        if (estadoDescanso === "aviso") { setEstadoDescanso(null); setDescansoActual(null); }
+        if (descansoCompletadoInicio !== null) setDescansoCompletadoInicio(null);
+        return;
+      }
+      // Ignorar el break que el operario ya completó/saltó
+      if (desc.inicio === descansoCompletadoInicio) return;
+
+      if (desc.estado === "aviso" && estadoDescanso !== "aviso" && estadoDescanso !== "pausado") {
         setEstadoDescanso("aviso");
         setDescansoActual(desc);
         vibrar([100, 50, 100]);
-      } else if (desc?.estado === "activo" && estadoDescanso !== "pausado") {
+      } else if (desc.estado === "activo" && estadoDescanso !== "pausado") {
         setEstadoDescanso("pausado");
         setDescansoActual(desc);
         setCronIniciado(false);
+        setCronSeg(0);
         setSegsDescanso(desc.duracion * 60);
         vibrar([200, 100, 200]);
-        // Registrar la parada automática
         const reg = { id: Date.now(), ts: new Date().toLocaleTimeString("es-CO"), motivo: desc.nombre, esParada: true, afectaEf: false, activa: false, tsFin: Date.now(), duracionMin: desc.duracion, usuarioId: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
         setRegistros(prev => [reg, ...prev]);
         if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
-      } else if (!desc && estadoDescanso === "aviso") {
-        setEstadoDescanso(null);
-        setDescansoActual(null);
       }
     };
     check();
     const t = setInterval(check, 30000);
     return () => clearInterval(t);
-  }, [horarios, moduloSel, estadoDescanso]);
+  }, [horarios, moduloSel, estadoDescanso, descansoCompletadoInicio]);
 
   // Cuenta regresiva del descanso
   useEffect(() => {
@@ -2799,14 +2806,17 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
           </p>
           <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{segsDescanso <= 0 ? "Tiempo completado" : "Tiempo restante de descanso"}</p>
           <button onClick={() => {
-            // Registrar si volvió tarde
             const tardanza = segsDescanso < 0 ? Math.abs(Math.round(segsDescanso / 60)) : 0;
             if (tardanza > 0) {
               const reg = { id: Date.now(), ts: new Date().toLocaleTimeString("es-CO"), motivo: "Retorno tarde de " + descansoActual.nombre + " (" + tardanza + "min)", esParada: true, afectaEf: true, activa: false, tsFin: Date.now(), duracionMin: tardanza, usuarioId: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
               setRegistros(prev => [reg, ...prev]);
               if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
             }
-            setEstadoDescanso(null); setDescansoActual(null); setCronIniciado(true); setCronSeg(0);
+            setDescansoCompletadoInicio(descansoActual.inicio);
+            setEstadoDescanso(null);
+            setDescansoActual(null);
+            setCronIniciado(false);
+            setCronSeg(0);
           }}
             style={{ background: segsDescanso <= 0 ? T.green : "rgba(255,255,255,0.08)", color: segsDescanso <= 0 ? "#000" : T.text, border: "1px solid " + (segsDescanso <= 0 ? T.green : T.border), borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: "pointer" }}>
             VOLVER AL TURNO
