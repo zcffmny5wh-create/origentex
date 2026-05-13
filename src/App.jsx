@@ -351,7 +351,7 @@ const detectarDescanso = (horarios, modulo) => {
 
   for (const d of descansos) {
     const minAntes = d.inicio - ahora;
-    if (minAntes > 0 && minAntes <= 5) return { ...d, estado: "aviso", minAntes };
+    if (minAntes > 0 && minAntes <= 2) return { ...d, estado: "aviso", minAntes };
     if (ahora >= d.inicio && ahora < d.inicio + d.duracion) return { ...d, estado: "activo", minRestantes: d.inicio + d.duracion - ahora };
   }
   return null;
@@ -2484,18 +2484,23 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
     if (!horarios) return;
     const check = () => {
       const desc = detectarDescanso(horarios, moduloSel);
-      if (desc?.estado === "aviso") {
-        // Sin aviso previo — ignorar
-        return;
+      if (desc?.estado === "aviso" && estadoDescanso !== "aviso" && estadoDescanso !== "pausado") {
+        setEstadoDescanso("aviso");
+        setDescansoActual(desc);
+        vibrar([100, 50, 100]);
       } else if (desc?.estado === "activo" && estadoDescanso !== "pausado") {
-        // Activar automáticamente
         setEstadoDescanso("pausado");
         setDescansoActual(desc);
         setCronIniciado(false);
         setSegsDescanso(desc.duracion * 60);
         vibrar([200, 100, 200]);
-      } else if (!desc && (estadoDescanso === "aviso")) {
+        // Registrar la parada automática
+        const reg = { id: Date.now(), ts: new Date().toLocaleTimeString("es-CO"), motivo: desc.nombre, esParada: true, afectaEf: false, activa: false, tsFin: Date.now(), duracionMin: desc.duracion, usuarioId: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
+        setRegistros(prev => [reg, ...prev]);
+        if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
+      } else if (!desc && estadoDescanso === "aviso") {
         setEstadoDescanso(null);
+        setDescansoActual(null);
       }
     };
     check();
@@ -2764,6 +2769,19 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
           <button onClick={() => setShowResumen(true)} style={{ background: "transparent", border: "1px solid #4499ff", borderRadius: 8, color: "#4499ff", fontFamily: T.mono, fontSize: 10, padding: "6px 10px", cursor: "pointer" }}>FIN</button>
         </div>
       </div>
+
+      {/* Aviso 2 minutos antes del descanso */}
+      {estadoDescanso === "aviso" && descansoActual && (
+        <div style={{ background: "rgba(255,230,0,0.08)", border: "2px solid " + T.yellow, margin: "0 14px", borderRadius: 14, padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ fontSize: 18, fontWeight: 900, color: T.yellow, fontFamily: T.font }}>
+            {descansoActual.nombre === "Desayuno" ? "☕" : descansoActual.nombre === "Almuerzo" ? "🍽" : "🧘"} PRÓXIMO DESCANSO
+          </p>
+          <p style={{ fontSize: 14, color: T.text, fontFamily: T.font }}>
+            En {descansoActual.minAntes} min — <strong>{descansoActual.nombre}</strong> ({descansoActual.duracion} min)
+          </p>
+          <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Termina tu pieza actual antes de que inicie</p>
+        </div>
+      )}
 
       {/* Descanso automático con cuenta regresiva */}
       {estadoDescanso === "pausado" && descansoActual && (
