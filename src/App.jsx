@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Settings, AlertTriangle, AlertCircle, LifeBuoy, Undo2, Check, Target, Scissors, LogOut, LayoutDashboard, ClipboardList, FolderOpen, Users, TrendingUp, Clock, KeyRound, Shield } from "lucide-react";
+import { Bell, Settings, AlertTriangle, AlertCircle, LifeBuoy, Undo2, Check, Target, Scissors, LogOut, LayoutDashboard, ClipboardList, FolderOpen, Users, TrendingUp, Clock, KeyRound, Shield, Package, ShoppingCart, GitBranch, Activity } from "lucide-react";
 import { supabase } from "./supabase";
 
 const hashClave = async (clave, usuario) => {
@@ -14,12 +14,8 @@ const sanitizar = (str) => {
   const s = String(str).trim().slice(0, 200);
   return s.split("").filter(c => c !== "<" && c !== ">" && c !== '"' && c !== "'" && c !== "`" && c !== ";" && c !== "\\").join("");
 };
-const MAX_INTENTOS = 5;
-const BLOQUEO_MS = 15 * 60 * 1000;
 const SESION_MS = 8 * 60 * 60 * 1000;
 const INACTIVIDAD_MS = 30 * 60 * 1000;
-const getBloqueos = () => { try { return JSON.parse(localStorage.getItem("otx_bloqueos") || "{}"); } catch { return {}; } };
-const setBloqueos = (b) => { try { localStorage.setItem("otx_bloqueos", JSON.stringify(b)); } catch {} };
 
 // ─── ADMIN PREDEFINIDO ────────────────────────────────────────────────────────
 
@@ -29,9 +25,13 @@ const ADMIN_ROOT_CLAVE = "origen2026*";
 // ─── ROLES ────────────────────────────────────────────────────────────────────
 
 const ROLES = {
-  ADMIN:      { label: "Administrador", color: "#ffe600", icon: "👑", permisos: ["inicio","dashboard","ordenes","catalogo","operarios","eficiencia","horarios","reporte","usuarios","log"] },
-  SUPERVISOR: { label: "Supervisor",    color: "#0088ff", icon: "🎯", permisos: ["inicio","dashboard","ordenes","catalogo","operarios","eficiencia","horarios"] },
-  OPERARIO:   { label: "Operario",      color: "#00ff88", icon: "🔧", permisos: ["tablet"] },
+  ADMIN:               { label: "Administrador",          color: "#ffe600", icon: "👑",  permisos: ["inicio","dashboard","ordenes","catalogo","operarios","eficiencia","horarios","reporte","usuarios","log"] },
+  DIRECTOR_PRODUCCION: { label: "Director de Producción", color: "#ff6600", icon: "🏭",  permisos: ["inicio","pipeline","pedidos","ordenes","catalogo","corte","inventario","eficiencia","reporte","dashboard"] },
+  COMERCIAL:           { label: "Comercial",              color: "#cc00ff", icon: "💼",  permisos: ["inicio","pedidos"] },
+  JEFE_COMPRAS:        { label: "Jefe de Compras",        color: "#00eeff", icon: "📦",  permisos: ["inicio","inventario"] },
+  JEFE_CORTE:          { label: "Jefe de Corte",          color: "#ffaa00", icon: "✂️", permisos: ["inicio","corte"] },
+  SUPERVISOR:          { label: "Supervisor",             color: "#0088ff", icon: "🎯",  permisos: ["inicio","dashboard","ordenes","catalogo","operarios","eficiencia","horarios"] },
+  OPERARIO:            { label: "Operario",               color: "#00ff88", icon: "🔧",  permisos: ["tablet"] },
 };
 
 // ─── DATOS INICIALES ──────────────────────────────────────────────────────────
@@ -49,113 +49,7 @@ const MOTIVOS_PARADA = [
   { motivo: "Otro",                     afectaEf: false },
 ];
 const TIPOS_DEFECTO = ["Costura abierta", "Medida incorrecta", "Tela defectuosa", "Mal ensamble", "Mancha", "Otro"];
-
-// ADVERTENCIA DE SEGURIDAD: Las claves iniciales están en texto plano solo para demo.
-const USUARIOS_INIT = [];
-
-const OPERARIOS_INIT = [];
-
-const ORDENES_INIT = [
-  {
-    id: "OP-2024-001", referencia: "CAMISA-001", descripcion: "Camisa manga larga",
-    cliente: "Almacenes Éxito", cantidadTotal: 500, cantidadProducida: 320,
-    fechaEntrega: "2026-05-10", estado: "En proceso", prioridad: "Alta",
-    tallas: [
-      { talla: "M",  cantidad: 200, completadasPorOp: { "Armado de bolsillos": 150, "Costura de hombros": 120 } },
-      { talla: "L",  cantidad: 200, completadasPorOp: { "Armado de bolsillos": 120, "Costura de hombros": 100 } },
-      { talla: "XL", cantidad: 100, completadasPorOp: { "Armado de bolsillos": 50,  "Costura de hombros": 30  } },
-    ],
-    secuencia: [
-      { operacion: "Corte de piezas",     tiempo: 0.8, operario: 2, piezas: 500, completadas: 500, estado: "Completado" },
-      { operacion: "Fusionado",           tiempo: 0.5, operario: 1, piezas: 500, completadas: 500, estado: "Completado" },
-      { operacion: "Armado de bolsillos", tiempo: 0.2, operario: 3, piezas: 500, completadas: 400, estado: "En proceso" },
-      { operacion: "Costura de hombros",  tiempo: 0.9, operario: 6, piezas: 500, completadas: 320, estado: "En proceso" },
-      { operacion: "Pegado de mangas",    tiempo: 1.5, operario: null, piezas: 500, completadas: 0, estado: "Pendiente" },
-      { operacion: "Costura de costados", tiempo: 0.7, operario: null, piezas: 500, completadas: 0, estado: "Pendiente" },
-      { operacion: "Dobladillo inferior", tiempo: 0.6, operario: null, piezas: 500, completadas: 0, estado: "Pendiente" },
-      { operacion: "Plancha",             tiempo: 0.8, operario: null, piezas: 500, completadas: 0, estado: "Pendiente" },
-      { operacion: "Control de calidad",  tiempo: 0.5, operario: null, piezas: 500, completadas: 0, estado: "Pendiente" },
-      { operacion: "Empaque",             tiempo: 0.3, operario: null, piezas: 500, completadas: 0, estado: "Pendiente" },
-    ],
-  },
-  {
-    id: "OP-2024-002", referencia: "PANT-002", descripcion: "Pantalón casual",
-    cliente: "Koaj", cantidadTotal: 300, cantidadProducida: 90,
-    fechaEntrega: "2026-05-20", estado: "En proceso", prioridad: "Media",
-    tallas: [
-      { talla: "28", cantidad: 60,  completadasPorOp: {} },
-      { talla: "30", cantidad: 80,  completadasPorOp: {} },
-      { talla: "32", cantidad: 80,  completadasPorOp: {} },
-      { talla: "34", cantidad: 50,  completadasPorOp: {} },
-      { talla: "36", cantidad: 30,  completadasPorOp: {} },
-    ],
-    secuencia: [
-      { operacion: "Corte de piezas",     tiempo: 1.0, operario: 2, piezas: 300, completadas: 300, estado: "Completado" },
-      { operacion: "Armado de bolsillos", tiempo: 1.5, operario: 3, piezas: 300, completadas: 180, estado: "En proceso" },
-      { operacion: "Costura de costados", tiempo: 1.2, operario: 1, piezas: 300, completadas: 90,  estado: "En proceso" },
-      { operacion: "Dobladillo inferior", tiempo: 0.6, operario: null, piezas: 300, completadas: 0, estado: "Pendiente" },
-      { operacion: "Plancha",             tiempo: 0.8, operario: null, piezas: 300, completadas: 0, estado: "Pendiente" },
-      { operacion: "Empaque",             tiempo: 0.3, operario: null, piezas: 300, completadas: 0, estado: "Pendiente" },
-    ],
-  },
-  {
-    id: "OP-2024-003", referencia: "POLO-003", descripcion: "Polo deportivo",
-    cliente: "Adidas Colombia", cantidadTotal: 800, cantidadProducida: 0,
-    fechaEntrega: "2026-06-01", estado: "Pendiente", prioridad: "Baja",
-    tallas: [
-      { talla: "S", cantidad: 200, completadasPorOp: {} },
-      { talla: "M", cantidad: 350, completadasPorOp: {} },
-      { talla: "L", cantidad: 250, completadasPorOp: {} },
-    ],
-    secuencia: [
-      { operacion: "Corte de piezas",    tiempo: 0.7, operario: null, piezas: 800, completadas: 0, estado: "Pendiente" },
-      { operacion: "Costura de hombros", tiempo: 0.8, operario: null, piezas: 800, completadas: 0, estado: "Pendiente" },
-      { operacion: "Pegado de mangas",   tiempo: 1.2, operario: null, piezas: 800, completadas: 0, estado: "Pendiente" },
-      { operacion: "Dobladillo inferior",tiempo: 0.5, operario: null, piezas: 800, completadas: 0, estado: "Pendiente" },
-      { operacion: "Plancha",            tiempo: 0.7, operario: null, piezas: 800, completadas: 0, estado: "Pendiente" },
-      { operacion: "Empaque",            tiempo: 0.3, operario: null, piezas: 800, completadas: 0, estado: "Pendiente" },
-    ],
-  },
-];
-
 const TALLAS_DISPONIBLES = ["Única", "XS", "S", "M", "L", "XL", "2XL"];
-
-const CATALOGO_INIT = [
-  {
-    id: "CAT-001",
-    nombre: "CAMISA-001",
-    descripcion: "Camisa manga larga",
-    tallas: ["S", "M", "L", "XL"],
-    operaciones: [
-      { operacion: "Corte de piezas",     sam: 0.8 },
-      { operacion: "Fusionado",           sam: 0.5 },
-      { operacion: "Armado de bolsillos", sam: 0.2 },
-      { operacion: "Costura de hombros",  sam: 0.9 },
-      { operacion: "Pegado de mangas",    sam: 1.5 },
-      { operacion: "Costura de costados", sam: 0.7 },
-      { operacion: "Dobladillo inferior", sam: 0.6 },
-      { operacion: "Plancha",             sam: 0.8 },
-      { operacion: "Control de calidad",  sam: 0.5 },
-      { operacion: "Empaque",             sam: 0.3 },
-    ],
-  },
-  {
-    id: "CAT-002",
-    nombre: "PANT-002",
-    descripcion: "Pantalón casual",
-    tallas: ["28", "30", "32", "34", "36"],
-    operaciones: [
-      { operacion: "Corte de piezas",     sam: 1.0 },
-      { operacion: "Armado de bolsillos", sam: 1.5 },
-      { operacion: "Costura de costados", sam: 1.2 },
-      { operacion: "Dobladillo inferior", sam: 0.6 },
-      { operacion: "Plancha",             sam: 0.8 },
-      { operacion: "Empaque",             sam: 0.3 },
-    ],
-  },
-];
-
-const ASIGNACIONES_INIT = [];
 
 // ─── CONFIGURACIÓN DE HORARIOS ────────────────────────────────────────────────
 
@@ -182,12 +76,6 @@ const HORARIOS_INIT = {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-// Convierte "HH:MM" a minutos desde medianoche
-// Calcula eficiencia real del módulo
-// - terminadas: unidades que salieron de la última operación asignada a cada operario
-// - defectos: registrados por cada operario
-// - meta: minutos productivos / SAM total de operaciones del módulo
-// Proyecta cuándo termina el lote de un módulo al ritmo actual
 const proyectarFinLote = (registrosGlobales, asignaciones, usuarios, ordenes, modulo) => {
   const operariosModulo = usuarios.filter(u => u.rol === "OPERARIO" && u.activo && u.modulo === modulo);
   if (!operariosModulo.length) return null;
@@ -391,6 +279,7 @@ const T = {
   blue:    "#0088ff",
   purple:  "#cc00ff",
   cyan:    "#00eeff",
+  amber:   "#ffaa00",
   text:    "#ffffff",
   muted:   "#888888",
   faint:   "rgba(255,255,255,0.06)",
@@ -408,7 +297,7 @@ const Glass = ({ children, style = {} }) => (
   </div>
 );
 
-const Badge = ({ children, color = "blue" }) => {
+const Badge = ({ children, color = "blue", style = {} }) => {
   const colors = {
     blue:   ["#001833", "#0088ff", "#0044aa"],
     green:  ["#001a0d", "#00ff88", "#00aa44"],
@@ -420,7 +309,7 @@ const Badge = ({ children, color = "blue" }) => {
   };
   const [bg, text, border] = colors[color] || colors.gray;
   return (
-    <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: bg, color: text, border: "1px solid " + border, fontFamily: T.mono, fontWeight: 700, letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+    <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: bg, color: text, border: "1px solid " + border, fontFamily: T.mono, fontWeight: 700, letterSpacing: "0.06em", whiteSpace: "nowrap", ...style }}>
       {children}
     </span>
   );
@@ -681,8 +570,23 @@ const GestionOrdenes = ({ ordenes, setOrdenes, operarios, catalogo = [] }) => {
   const [cliente, setCliente] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [cantidades, setCantidades] = useState({});
+  const [noAplica, setNoAplica] = useState(new Set());
 
   const refSel = catalogo.find(r => r.id === refSelId);
+
+  const seleccionarRef = (id) => {
+    setRefSelId(id);
+    setCantidades({});
+    setNoAplica(new Set());
+  };
+
+  const toggleOp = (opNombre) => {
+    setNoAplica(prev => {
+      const next = new Set(prev);
+      next.has(opNombre) ? next.delete(opNombre) : next.add(opNombre);
+      return next;
+    });
+  };
 
   const crearOrden = () => {
     if (!refSel || !cliente || !fechaEntrega) return;
@@ -702,18 +606,20 @@ const GestionOrdenes = ({ ordenes, setOrdenes, operarios, catalogo = [] }) => {
       estado: "Pendiente",
       prioridad: "Media",
       tallas,
-      secuencia: refSel.operaciones.map(op => ({
-        operacion: op.operacion,
-        tiempo: op.sam,
-        operario: null,
-        piezas: cantidadTotal,
-        completadas: 0,
-        estado: "Pendiente",
-      })),
+      secuencia: refSel.operaciones
+        .filter(op => !noAplica.has(op.operacion))
+        .map(op => ({
+          operacion: op.operacion,
+          tiempo: op.sam,
+          operario: null,
+          piezas: cantidadTotal,
+          completadas: 0,
+          estado: "Pendiente",
+        })),
     };
     setOrdenes(prev => [...prev, nueva]);
     setShowForm(false);
-    setRefSelId(""); setCliente(""); setFechaEntrega(""); setCantidades({});
+    setRefSelId(""); setCliente(""); setFechaEntrega(""); setCantidades({}); setNoAplica(new Set());
   };
 
   if (vista === "detalle" && ordenSel) {
@@ -812,20 +718,38 @@ const GestionOrdenes = ({ ordenes, setOrdenes, operarios, catalogo = [] }) => {
           <p style={{ fontSize: 11, color: T.yellow, fontFamily: T.mono, letterSpacing: "0.12em" }}>NUEVA ORDEN DE PRODUCCIÓN</p>
           <div>
             <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 6 }}>REFERENCIA DEL CATÁLOGO</p>
-            <select value={refSelId} onChange={e => { setRefSelId(e.target.value); setCantidades({}); }}
+            <select value={refSelId} onChange={e => seleccionarRef(e.target.value)}
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid " + T.border, padding: "10px 12px", color: T.text, fontSize: 13, outline: "none", fontFamily: T.font, width: "100%", borderRadius: 6 }}>
               <option value="">Selecciona una referencia...</option>
               {catalogo.map(r => <option key={r.id} value={r.id}>{r.nombre} — {r.descripcion}</option>)}
             </select>
           </div>
-          {refSel && (
-            <div style={{ background: "rgba(0,255,136,0.05)", border: "1px solid rgba(0,255,136,0.2)", borderRadius: 10, padding: "10px 14px" }}>
-              <p style={{ fontSize: 11, fontWeight: 900, color: T.green, fontFamily: T.font, marginBottom: 6 }}>{refSel.operaciones.length} operaciones · SAM total: {refSel.operaciones.reduce((a, o) => a + o.sam, 0).toFixed(1)} min</p>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {refSel.operaciones.map((op, i) => (
-                  <span key={i} style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, background: "rgba(255,255,255,0.04)", border: "1px solid " + T.border, borderRadius: 4, padding: "2px 6px" }}>{op.operacion} ({op.sam})</span>
-                ))}
+          {refSel && refSel.operaciones.length > 0 && (
+            <div>
+              <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.12em", marginBottom: 8 }}>
+                PROCESOS — toca para marcar "No aplica"
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {refSel.operaciones.map((op, i) => {
+                  const excluida = noAplica.has(op.operacion);
+                  return (
+                    <div key={i} onClick={() => toggleOp(op.operacion)}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 12px", borderRadius: 7, border: "1px solid " + (excluida ? "rgba(255,68,68,0.4)" : "rgba(0,255,136,0.25)"), background: excluida ? "rgba(255,68,68,0.06)" : "rgba(0,255,136,0.04)", cursor: "pointer", opacity: excluida ? 0.6 : 1 }}>
+                      <span style={{ fontSize: 12, color: excluida ? T.red : T.text, textDecoration: excluida ? "line-through" : "none", fontFamily: T.mono }}>{op.operacion}</span>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{op.sam} min</span>
+                        <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: excluida ? T.red : T.green }}>
+                          {excluida ? "NO APLICA" : "APLICA"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+              <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, marginTop: 6, textAlign: "right" }}>
+                {refSel.operaciones.length - noAplica.size} de {refSel.operaciones.length} procesos activos ·{" "}
+                SAM: {refSel.operaciones.filter(op => !noAplica.has(op.operacion)).reduce((a, o) => a + (o.sam || 0), 0).toFixed(1)} min
+              </p>
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1170,64 +1094,105 @@ const GestionOperarios = ({ operarios, setOperarios, ordenes, usuarios, asignaci
 
       {/* ASIGNACIONES */}
       {tabLocal === "asignaciones" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>ASIGNACIONES OPERARIO → ORDEN → OPERACIONES</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Resumen de cobertura */}
+          {(() => {
+            const operariosRol = (usuarios || []).filter(u => u.rol === "OPERARIO" && u.activo);
+            const asignados = operariosRol.filter(u => asignaciones?.find(a => a.usuarioId === u.id && a.ordenId));
+            const sinAsig = operariosRol.filter(u => !asignaciones?.find(a => a.usuarioId === u.id && a.ordenId));
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 4 }}>
+                <div style={{ background: T.green + "12", border: "1px solid " + T.green + "33", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <p style={{ fontSize: 20, fontWeight: 900, color: T.green, fontFamily: T.mono }}>{asignados.length}</p>
+                  <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginTop: 2 }}>ASIGNADOS</p>
+                </div>
+                <div style={{ background: (sinAsig.length > 0 ? T.amber : T.muted) + "12", border: "1px solid " + (sinAsig.length > 0 ? T.amber : T.muted) + "33", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <p style={{ fontSize: 20, fontWeight: 900, color: sinAsig.length > 0 ? T.amber : T.muted, fontFamily: T.mono }}>{sinAsig.length}</p>
+                  <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginTop: 2 }}>SIN ASIGNAR</p>
+                </div>
+                <div style={{ background: T.cyan + "12", border: "1px solid " + T.cyan + "33", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <p style={{ fontSize: 20, fontWeight: 900, color: T.cyan, fontFamily: T.mono }}>{operariosRol.length}</p>
+                  <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginTop: 2 }}>TOTAL ACTIVOS</p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Tarjetas por operario */}
           {(usuarios || []).filter(u => u.rol === "OPERARIO").map(u => {
             const asig = asignaciones?.find(a => a.usuarioId === u.id);
+            const orden = asig?.ordenId ? ordenes.find(o => o.id === asig.ordenId) : null;
+            const tieneAsig = !!(asig?.ordenId);
+            const secuenciaCompleta = orden?.secuencia?.map(s => s.operacion) || [];
+            const opsAsignadas = asig?.operaciones || [];
+            const faltantes = secuenciaCompleta.filter(op => !opsAsignadas.includes(op));
+
             return (
-              <Glass key={u.id} style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <Glass key={u.id} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12, borderColor: tieneAsig ? T.green + "33" : T.amber + "33" }}>
+                {/* Cabecera operario */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 900, color: T.text, fontFamily: T.font }}>{u.nombre}</p>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: tieneAsig ? T.green : T.amber, flexShrink: 0 }} />
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 900, color: T.text, fontFamily: T.font }}>{u.nombre}</p>
+                      <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{u.modulo || "Sin módulo"}</p>
+                    </div>
+                  </div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <Badge color="gray">{u.modulo}</Badge>
-                    {asig?.ordenId && (
+                    {tieneAsig && (
                       <button onClick={() => setAsignaciones(prev => prev.filter(a => a.usuarioId !== u.id))}
-                        style={{ background: "transparent", border: "1px solid " + T.red, color: T.red, fontFamily: T.mono, fontSize: 10, padding: "3px 8px", cursor: "pointer", borderRadius: 4 }}>
+                        style={{ background: "transparent", border: "1px solid " + T.red + "66", color: T.red, fontFamily: T.mono, fontSize: 10, padding: "3px 8px", cursor: "pointer", borderRadius: 4 }}>
                         ✕ Limpiar
                       </button>
                     )}
                   </div>
                 </div>
-                <select value={asig?.ordenId || ""} onChange={e => {
-                  setAsignaciones(prev => {
-                    const sinEste = prev.filter(a => a.usuarioId !== u.id);
-                    if (!e.target.value) return sinEste;
-                    return [...sinEste, { usuarioId: u.id, ordenId: e.target.value, operaciones: [] }];
-                  });
-                }} style={INP}>
-                  <option value="">Sin asignacion</option>
-                  {ordenes.filter(o => o.estado !== "Completado").map(o => <option key={o.id} value={o.id}>{o.id} · {o.referencia}</option>)}
-                </select>
-                {asig?.ordenId && (
-                  <div>
-                    <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em", marginBottom: 6 }}>OPERACIONES:</p>
-                    {(() => {
-                      const orden = ordenes.find(o => o.id === asig.ordenId);
-                      const opsAsignadasEnModulo = (usuarios || [])
-                        .filter(x => x.rol === "OPERARIO" && x.modulo === u.modulo && x.id !== u.id)
-                        .flatMap(x => asignaciones.find(a => a.usuarioId === x.id)?.operaciones || []);
-                      const todasOps = [...new Set([...opsAsignadasEnModulo, ...(asig.operaciones || [])])];
-                      const secuenciaCompleta = orden?.secuencia.map(s => s.operacion) || [];
-                      const faltantes = secuenciaCompleta.filter(op => !todasOps.includes(op));
-                      return faltantes.length > 0 ? (
-                        <div style={{ background: "rgba(255,230,0,0.06)", border: "1px solid rgba(255,230,0,0.2)", borderRadius: 6, padding: "6px 10px", marginBottom: 6 }}>
-                          <p style={{ fontSize: 9, color: T.yellow, fontFamily: T.mono }}>⚠ Sin asignar: {faltantes.join(", ")}</p>
-                        </div>
-                      ) : null;
-                    })()}
+
+                {/* Selector de orden */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.08em" }}>ORDEN ASIGNADA</label>
+                  <select value={asig?.ordenId || ""} onChange={e => {
+                    setAsignaciones(prev => {
+                      const sinEste = prev.filter(a => a.usuarioId !== u.id);
+                      if (!e.target.value) return sinEste;
+                      return [...sinEste, { usuarioId: u.id, ordenId: e.target.value, operaciones: [] }];
+                    });
+                  }} style={{ ...INP, color: tieneAsig ? T.text : T.muted }}>
+                    <option value="">— Sin asignación —</option>
+                    {ordenes.filter(o => o.estado !== "Completado").map(o => (
+                      <option key={o.id} value={o.id}>{o.referencia} · {o.cliente}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Operaciones */}
+                {orden && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {faltantes.length > 0 && (
+                      <div style={{ background: T.amber + "12", border: "1px solid " + T.amber + "33", borderRadius: 6, padding: "6px 10px" }}>
+                        <p style={{ fontSize: 9, color: T.amber, fontFamily: T.mono }}>⚠ Sin asignar: {faltantes.join(", ")}</p>
+                      </div>
+                    )}
+                    {faltantes.length === 0 && secuenciaCompleta.length > 0 && (
+                      <div style={{ background: T.green + "12", border: "1px solid " + T.green + "33", borderRadius: 6, padding: "6px 10px" }}>
+                        <p style={{ fontSize: 9, color: T.green, fontFamily: T.mono }}>✓ Todas las operaciones asignadas</p>
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {ordenes.find(o => o.id === asig.ordenId)?.secuencia.map(s => {
-                        const seleccionada = asig.operaciones?.includes(s.operacion);
+                      {orden.secuencia?.map(s => {
+                        const seleccionada = asig?.operaciones?.includes(s.operacion);
                         return (
                           <button key={s.operacion} onClick={() => {
-                            setAsignaciones(prev => prev.map(a => a.usuarioId !== u.id ? a : {
+                            setAsignaciones(prev => prev.map(a => a.usuarioId !== u.id ? a : ({
                               ...a,
                               operaciones: seleccionada
                                 ? a.operaciones.filter(op => op !== s.operacion)
                                 : [...(a.operaciones || []), s.operacion],
-                            }));
-                          }} style={{ padding: "4px 10px", background: seleccionada ? "rgba(0,255,136,0.15)" : "rgba(255,255,255,0.03)", border: "1px solid " + (seleccionada ? T.green : T.border), borderRadius: 20, color: seleccionada ? T.green : T.muted, fontFamily: T.mono, fontSize: 10, cursor: "pointer" }}>
+                            })));
+                          }} title={s.sam ? `SAM: ${s.sam} min` : ""}
+                            style={{ padding: "4px 10px", background: seleccionada ? T.green + "20" : "rgba(255,255,255,0.03)", border: "1px solid " + (seleccionada ? T.green : T.border), borderRadius: 20, color: seleccionada ? T.green : T.muted, fontFamily: T.mono, fontSize: 10, cursor: "pointer" }}>
                             {s.operacion}
+                            {s.sam ? <span style={{ opacity: 0.6, marginLeft: 4 }}>{s.sam}s</span> : null}
                           </button>
                         );
                       })}
@@ -1613,19 +1578,1260 @@ const AdminHome = ({ setTab, ordenes, operarios, usuarios, registrosGlobales, lo
   );
 };
 
+// ─── HOME DIRECTOR DE PRODUCCIÓN ─────────────────────────────────────────────
 
+const HomeDirector = ({ setTab, ordenes, usuarios, registrosGlobales }) => {
+  const enProceso = ordenes.filter(o => o.estado === "En proceso").length;
+  const pendientes = ordenes.filter(o => o.estado === "Pendiente").length;
+  const activos = (usuarios || []).filter(u => u.rol === "OPERARIO" && u.activo).length;
+  const prodHoy = registrosGlobales.filter(r => !r.esParada && !r.esDefecto).length;
+
+  const CARDS = [
+    { id: "pipeline",   icon: <GitBranch  size={26} color={T.orange} strokeWidth={1.5} />, label: "Pipeline",    color: T.orange, kpi: enProceso + pendientes, sub: "Órdenes activas"     },
+    { id: "pedidos",    icon: <ShoppingCart size={26} color={T.purple} strokeWidth={1.5} />, label: "Pedidos",     color: T.purple,   kpi: "—",                    sub: "Órdenes de clientes" },
+    { id: "ordenes",    icon: <ClipboardList size={26} color={T.cyan} strokeWidth={1.5} />, label: "Producción", color: T.cyan,   kpi: enProceso,              sub: "En proceso"          },
+    { id: "inventario", icon: <Package    size={26} color={T.blue}   strokeWidth={1.5} />, label: "Compras",     color: T.blue,   kpi: "—",                    sub: "Materiales e insumos"},
+    { id: "corte",      icon: <Scissors   size={26} color={T.amber}  strokeWidth={1.5} />, label: "Corte",       color: T.amber,  kpi: "—",                    sub: "Órdenes de corte"    },
+    { id: "eficiencia", icon: <TrendingUp size={26} color={T.green}  strokeWidth={1.5} />, label: "Eficiencia",  color: T.green,  kpi: prodHoy,                sub: "Uds producidas hoy"  },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <p style={{ fontSize: 22, fontWeight: 900, color: T.text, fontFamily: T.font }}>Director de Producción</p>
+        <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {[
+          { label: "En proceso",       value: enProceso, color: T.cyan   },
+          { label: "Pendientes",       value: pendientes, color: T.yellow },
+          { label: "Operarios activos", value: activos,  color: T.green  },
+        ].map(k => (
+          <div key={k.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid " + T.border, borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
+            <p style={{ fontSize: 22, fontWeight: 900, color: k.color, fontFamily: T.mono, lineHeight: 1 }}>{k.value}</p>
+            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginTop: 3 }}>{k.label.toUpperCase()}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {CARDS.map(c => (
+          <button key={c.id} onClick={() => setTab(c.id)}
+            style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)", border: "1px solid " + c.color + "33", borderRadius: 14, padding: "16px 14px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8, transition: "all 0.2s" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              {c.icon}
+              <span style={{ fontSize: 20, fontWeight: 900, color: c.color, fontFamily: T.mono }}>{c.kpi}</span>
+            </div>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 800, color: T.text }}>{c.label}</p>
+              <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{c.sub}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── HOME COMERCIAL ───────────────────────────────────────────────────────────
+
+const HomeComercial = ({ setTab }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div>
+      <p style={{ fontSize: 22, fontWeight: 900, color: T.text, fontFamily: T.font }}>Área Comercial</p>
+      <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+    </div>
+    <button onClick={() => setTab("pedidos")}
+      style={{ background: "rgba(204,0,255,0.08)", border: "1px solid rgba(204,0,255,0.3)", borderRadius: 14, padding: 20, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 16, transition: "all 0.2s" }}
+      onMouseEnter={e => e.currentTarget.style.background = "rgba(204,0,255,0.15)"}
+      onMouseLeave={e => e.currentTarget.style.background = "rgba(204,0,255,0.08)"}>
+      <ShoppingCart size={36} color={T.purple} strokeWidth={1.5} />
+      <div>
+        <p style={{ fontSize: 16, fontWeight: 900, color: T.text }}>Órdenes de Pedido</p>
+        <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Gestiona los pedidos de clientes</p>
+      </div>
+    </button>
+  </div>
+);
+
+// ─── HOME JEFE DE COMPRAS ─────────────────────────────────────────────────────
+
+const HomeJefeCompras = ({ setTab }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div>
+      <p style={{ fontSize: 22, fontWeight: 900, color: T.text, fontFamily: T.font }}>Jefe de Compras</p>
+      <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+    </div>
+    <button onClick={() => setTab("inventario")}
+      style={{ background: "rgba(0,238,255,0.08)", border: "1px solid rgba(0,238,255,0.3)", borderRadius: 14, padding: 20, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 16, transition: "all 0.2s" }}
+      onMouseEnter={e => e.currentTarget.style.background = "rgba(0,238,255,0.15)"}
+      onMouseLeave={e => e.currentTarget.style.background = "rgba(0,238,255,0.08)"}>
+      <Package size={36} color={T.cyan} strokeWidth={1.5} />
+      <div>
+        <p style={{ fontSize: 16, fontWeight: 900, color: T.text }}>Inventario y Compras</p>
+        <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Gestiona materiales, telas e insumos</p>
+      </div>
+    </button>
+  </div>
+);
+
+// ─── HOME JEFE DE CORTE ───────────────────────────────────────────────────────
+
+const HomeJefeCorte = ({ setTab }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div>
+      <p style={{ fontSize: 22, fontWeight: 900, color: T.text, fontFamily: T.font }}>Jefe de Corte</p>
+      <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+    </div>
+    <button onClick={() => setTab("corte")}
+      style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)", borderRadius: 14, padding: 20, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 16, transition: "all 0.2s" }}
+      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,170,0,0.15)"}
+      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,170,0,0.08)"}>
+      <Scissors size={36} color={T.amber} strokeWidth={1.5} />
+      <div>
+        <p style={{ fontSize: 16, fontWeight: 900, color: T.text }}>Módulo de Corte</p>
+        <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Gestiona órdenes de corte internas y externas</p>
+      </div>
+    </button>
+  </div>
+);
+
+// ─── HOME SUPERVISOR ─────────────────────────────────────────────────────────
+
+const HomeSupervisor = ({ setTab, ordenes, operarios, usuarios, registrosGlobales, asignaciones }) => {
+  const operariosActivos = (usuarios || []).filter(u => u.rol === "OPERARIO" && u.activo);
+  const sinAsig = operariosActivos.filter(u => !(asignaciones || []).find(a => a.usuarioId === u.id && a.ordenId));
+  const paradasActivas = (registrosGlobales || []).filter(r => r.esParada && r.activa);
+  const unidadesHoy = (registrosGlobales || []).filter(r => !r.esParada && !r.esDefecto).length;
+  const ordenesEnProceso = (ordenes || []).filter(o => o.estado === "En proceso");
+
+  const efGeneral = (() => {
+    const regs = (registrosGlobales || []).filter(r => !r.esParada && !r.esDefecto && r.tiempoReal > 0 && r.sam > 0);
+    if (!regs.length) return null;
+    return Math.round(regs.reduce((a, r) => a + (r.sam / r.tiempoReal * 100), 0) / regs.length);
+  })();
+
+  const ordenesSinCobertura = ordenesEnProceso.filter(o => {
+    const todasOps = (o.secuencia || []).map(s => s.operacion);
+    const asignadasTotal = (asignaciones || []).filter(a => a.ordenId === o.id).flatMap(a => a.operaciones || []);
+    return todasOps.some(op => !asignadasTotal.includes(op));
+  });
+
+  const alertas = [
+    sinAsig.length > 0 && { tipo: "operarios", msg: `${sinAsig.length} operario${sinAsig.length > 1 ? "s" : ""} sin asignación`, color: T.amber, nombres: sinAsig.map(u => u.nombre) },
+    paradasActivas.length > 0 && { tipo: "paradas", msg: `${paradasActivas.length} parada${paradasActivas.length > 1 ? "s" : ""} activa${paradasActivas.length > 1 ? "s" : ""} en este momento`, color: "#ff4444", nombres: [...new Set(paradasActivas.map(r => r.nombre))] },
+    ordenesSinCobertura.length > 0 && { tipo: "cobertura", msg: `${ordenesSinCobertura.length} orden${ordenesSinCobertura.length > 1 ? "es" : ""} con operaciones sin asignar`, color: T.amber, nombres: ordenesSinCobertura.map(o => o.referencia) },
+    efGeneral !== null && efGeneral < 80 && { tipo: "eficiencia", msg: `Eficiencia general por debajo del objetivo: ${efGeneral}%`, color: "#ff4444" },
+  ].filter(Boolean);
+
+  const CARDS = [
+    { id: "operarios",  label: "Piso en vivo",   sub: "Operarios, asignaciones y mensajes", color: T.blue,   icon: <Users        size={26} color={T.blue}   strokeWidth={1.5} /> },
+    { id: "eficiencia", label: "Eficiencia",      sub: "Métricas del turno por operario",    color: T.green,  icon: <TrendingUp   size={26} color={T.green}  strokeWidth={1.5} /> },
+    { id: "ordenes",    label: "Órdenes",          sub: "Estado de producción activa",        color: T.cyan,   icon: <ClipboardList size={26} color={T.cyan}  strokeWidth={1.5} /> },
+    { id: "horarios",   label: "Horarios",         sub: "Configuración del turno",            color: T.purple, icon: <Clock        size={26} color={T.purple} strokeWidth={1.5} /> },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <p style={{ fontSize: 22, fontWeight: 900, color: T.text, fontFamily: T.font }}>Supervisor de Piso</p>
+        <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8 }}>
+        {[
+          { label: "Activos",        value: operariosActivos.length,                       color: T.green },
+          { label: "Sin asignación", value: sinAsig.length,                                color: sinAsig.length > 0 ? T.amber : T.muted },
+          { label: "Paradas ahora",  value: paradasActivas.length,                         color: paradasActivas.length > 0 ? "#ff4444" : T.muted },
+          { label: "Uds del turno",  value: unidadesHoy,                                   color: T.cyan },
+          { label: "Eficiencia",     value: efGeneral !== null ? efGeneral + "%" : "—",    color: efGeneral !== null ? efColor(efGeneral) : T.muted },
+        ].map(k => (
+          <div key={k.label} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid " + T.border, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+            <p style={{ fontSize: 20, fontWeight: 900, color: k.color, fontFamily: T.mono, lineHeight: 1 }}>{k.value}</p>
+            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginTop: 3 }}>{k.label.toUpperCase()}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Alertas */}
+      {alertas.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {alertas.map((a, i) => (
+            <div key={i} style={{ background: a.color + "12", border: "1px solid " + a.color + "44", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: a.color, flexShrink: 0 }} />
+                <p style={{ fontSize: 12, fontWeight: 700, color: a.color, flex: 1 }}>{a.msg}</p>
+                <button onClick={() => setTab(a.tipo === "eficiencia" ? "eficiencia" : "operarios")}
+                  style={{ background: a.color + "22", border: "1px solid " + a.color + "55", borderRadius: 5, padding: "2px 10px", color: a.color, cursor: "pointer", fontSize: 10, fontFamily: T.mono }}>
+                  Ver →
+                </button>
+              </div>
+              {a.nombres?.length > 0 && (
+                <p style={{ fontSize: 11, color: T.muted, paddingLeft: 14, marginTop: 4 }}>{a.nombres.join(" · ")}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Órdenes en proceso */}
+      {ordenesEnProceso.length > 0 && (
+        <div>
+          <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em", marginBottom: 8 }}>ÓRDENES EN PROCESO ({ordenesEnProceso.length})</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {ordenesEnProceso.map(o => {
+              const pct = o.cantidadTotal ? Math.round(o.cantidadProducida / o.cantidadTotal * 100) : 0;
+              const dias = o.fechaEntrega ? Math.ceil((new Date(o.fechaEntrega + "T12:00:00") - new Date()) / 86400000) : null;
+              const sinCob = ordenesSinCobertura.some(x => x.id === o.id);
+              return (
+                <Glass key={o.id} style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, cursor: "pointer", borderColor: sinCob ? T.amber + "44" : T.border }} onClick={() => setTab("ordenes")}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{o.referencia}</p>
+                        {sinCob && <span style={{ fontSize: 9, fontFamily: T.mono, color: T.amber, background: T.amber + "20", border: "1px solid " + T.amber + "44", borderRadius: 4, padding: "1px 5px" }}>OPS PENDIENTES</span>}
+                      </div>
+                      <p style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{o.cliente}</p>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: T.cyan, fontFamily: T.mono }}>{o.cantidadProducida}/{o.cantidadTotal} uds</p>
+                      {dias !== null && (
+                        <p style={{ fontSize: 10, color: dias < 0 ? "#ff4444" : dias < 3 ? T.amber : T.muted, fontFamily: T.mono, marginTop: 2 }}>
+                          {dias < 0 ? `${Math.abs(dias)}d vencida` : dias === 0 ? "vence hoy" : `${dias}d restantes`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <ProgressBar value={pct} />
+                  <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{pct}% completado</p>
+                </Glass>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Accesos rápidos */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {CARDS.map(c => (
+          <button key={c.id} onClick={() => setTab(c.id)}
+            style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)", border: "1px solid " + c.color + "33", borderRadius: 14, padding: "16px 14px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 8, transition: "all 0.2s" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}>
+            <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid " + c.color + "44", borderRadius: 10, padding: 8, width: "fit-content" }}>
+              {c.icon}
+            </div>
+            <div>
+              <p style={{ fontSize: 15, fontWeight: 900, color: c.color, fontFamily: T.font, lineHeight: 1 }}>{c.label}</p>
+              <p style={{ fontSize: 10, color: T.muted, marginTop: 4 }}>{c.sub}</p>
+              <div style={{ height: 2, background: c.color, marginTop: 6, width: "30%", borderRadius: 2 }} />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── GESTIÓN DE PEDIDOS (Fase 3) ──────────────────────────────────────────────
+
+const PEDS_PRIORIDADES  = ["Alta", "Media", "Baja"];
+const PEDS_ESTADOS      = ["Borrador", "Confirmado", "En producción", "Entregado"];
+const PEDS_CONDICIONES  = ["Contado", "Crédito 30", "Crédito 60", "Crédito 90"];
+const PEDS_PCOLOR       = { Alta: "#ff4444", Media: "#ffaa00", Baja: "#00ff88" };
+const PEDS_ECOLOR       = { Borrador: "#888", Confirmado: "#00eeff", "En producción": "#00ff88", Entregado: "#cc00ff" };
+const FORM_PED_INIT     = { id: null, numeroPedido: "", tipo: "Producción", cliente: "", contacto: "", telefono: "", numeroOC: "", direccionEntrega: "", ciudad: "", transportadora: "", condicionesPago: "Contado", anticipoMonto: 0, anticipoEstado: "Pendiente", fechaEntrega: "", fechaInicioRequerida: "", prioridad: "Media", estado: "Borrador", referencias: [], notas: "", fechaCreacion: "", creadoPor: "", ordenProduccionId: null, historial: [] };
+const REF_DEV_INIT      = { nombre: "", descripcion: "", tallasActivas: [], tallasQty: {}, precioUnitario: 0, descuento: 0, colores: "", notasRef: "" };
+
+const GestionPedidos = ({ pedidos, setPedidos, catalogo, sesion, ordenes = [], setOrdenes }) => {
+  const [vista, setVista]           = useState("lista");
+  const [form, setForm]             = useState(FORM_PED_INIT);
+  const [modoNuevo, setModoNuevo]   = useState(false);
+  const [showAddRef, setShowAddRef] = useState(false);
+  const [searchCat, setSearchCat]   = useState("");
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [ordenesCreadas, setOrdenesCreadas] = useState([]);
+  const [error, setError] = useState("");
+  const [showAddRefDev, setShowAddRefDev] = useState(false);
+  const [refDevForm, setRefDevForm] = useState(REF_DEV_INIT);
+
+  const esComercial = ["COMERCIAL", "ADMIN"].includes(sesion?.rol);
+  const esDirector  = ["DIRECTOR_PRODUCCION", "ADMIN"].includes(sesion?.rol);
+  const puedeEditar = (modoNuevo || form.estado === "Borrador") && esComercial;
+
+  const ordenesDelPedido = ordenes.filter(o => o.pedidoId === form.id);
+  const yaGenerado = ordenesDelPedido.length > 0;
+
+  const generarNumeroPedido = () => {
+    const year = new Date().getFullYear();
+    const nums = pedidos
+      .map(p => p.numeroPedido)
+      .filter(n => n && n.startsWith(`PED-${year}-`))
+      .map(n => parseInt(n.split("-")[2]) || 0);
+    const next = nums.length ? Math.max(...nums) + 1 : 1;
+    return `PED-${year}-${String(next).padStart(3, "0")}`;
+  };
+
+  const confirmarPedido = () => {
+    if (!form.fechaEntrega) { setError("Define la fecha de entrega antes de confirmar."); return; }
+    if (!form.referencias.some(r => Object.values(r.tallas).some(q => q > 0))) { setError("Agrega al menos una referencia con cantidades."); return; }
+    setError("");
+    const entrada = { fecha: new Date().toISOString(), estado: "Confirmado", usuario: sesion?.nombre || "" };
+    const updated = { ...form, estado: "Confirmado", historial: [...(form.historial || []), entrada] };
+    setForm(updated);
+    setPedidos(prev => prev.map(p => p.id === form.id ? updated : p));
+  };
+
+  const marcarEntregado = () => {
+    const entrada = { fecha: new Date().toISOString(), estado: "Entregado", usuario: sesion?.nombre || "" };
+    const updated = { ...form, estado: "Entregado", historial: [...(form.historial || []), entrada] };
+    setForm(updated);
+    setPedidos(prev => prev.map(p => p.id === form.id ? updated : p));
+  };
+
+  const generarOrdenes = () => {
+    if (!form.id || form.referencias.length === 0) return;
+    const nuevas = form.referencias
+      .filter(ref => Object.values(ref.tallas).some(q => q > 0))
+      .map(ref => {
+        const catItem = (catalogo || []).find(c => c.id === ref.catalogoId);
+        const tallasArr = Object.entries(ref.tallas)
+          .filter(([, q]) => q > 0)
+          .map(([talla, cantidad]) => ({ talla, cantidad, completadasPorOp: {} }));
+        const cantidadTotal = tallasArr.reduce((a, t) => a + t.cantidad, 0);
+        return {
+          id: crypto.randomUUID(),
+          referencia: ref.nombre,
+          descripcion: ref.descripcion || "",
+          cliente: form.cliente,
+          fechaEntrega: form.fechaEntrega,
+          cantidadTotal,
+          cantidadProducida: 0,
+          estado: "Pendiente",
+          prioridad: form.prioridad,
+          tallas: tallasArr,
+          secuencia: (catItem?.operaciones || []).map(op => ({
+            operacion: op.operacion,
+            tiempo: op.sam || 0,
+            operario: null,
+            piezas: cantidadTotal,
+            completadas: 0,
+            estado: "Pendiente",
+          })),
+          pedidoId: form.id,
+        };
+      });
+    if (!nuevas.length) return;
+    setOrdenes(prev => [...nuevas, ...prev]);
+    const entradaHist = { fecha: new Date().toISOString(), estado: "En producción", usuario: sesion?.nombre || "" };
+    const updatedForm = { ...form, estado: "En producción", ordenProduccionId: nuevas[0].id, historial: [...(form.historial || []), entradaHist] };
+    setForm(updatedForm);
+    setPedidos(prev => prev.map(p => p.id === form.id ? updatedForm : p));
+    setOrdenesCreadas(nuevas.map(o => o.referencia));
+  };
+
+  const catLiberado = (catalogo || []).filter(c => c.estado === "Liberada");
+  const catFiltrado = catLiberado.filter(c =>
+    c.nombre.toLowerCase().includes(searchCat.toLowerCase()) ||
+    (c.descripcion || "").toLowerCase().includes(searchCat.toLowerCase())
+  );
+
+  const totalRef = (ref) => Object.values(ref.tallas || {}).reduce((a, b) => a + (b || 0), 0);
+  const totalPed = (p)   => (p.referencias || []).reduce((a, r) => a + totalRef(r), 0);
+
+  const totalPorTalla = () => {
+    const tot = {};
+    form.referencias.forEach(ref => {
+      Object.entries(ref.tallas || {}).forEach(([t, q]) => { tot[t] = (tot[t] || 0) + (q || 0); });
+    });
+    return tot;
+  };
+
+  const subtotalRef = (ref) => totalRef(ref) * (ref.precioUnitario || 0) * (1 - (ref.descuento || 0) / 100);
+
+  const valorTotalPedido = () => form.referencias.reduce((acc, ref) => acc + subtotalRef(ref), 0);
+
+  const calcularEstimado = () => {
+    let totalMin = 0;
+    form.referencias.forEach(ref => {
+      if (!ref.catalogoId) return;
+      const cat = (catalogo || []).find(c => c.id === ref.catalogoId);
+      if (!cat) return;
+      const samRef = (cat.operaciones || []).reduce((a, op) => a + (parseFloat(op.sam) || 0), 0);
+      totalMin += samRef * totalRef(ref);
+    });
+    if (totalMin === 0) return null;
+    return { minutos: Math.round(totalMin), dias: Math.ceil(totalMin / 480) };
+  };
+
+  const aplicarFechaInicio = () => {
+    const est = calcularEstimado();
+    if (!est || !form.fechaEntrega) return;
+    const d = new Date(form.fechaEntrega + "T12:00:00");
+    d.setDate(d.getDate() - est.dias);
+    setForm(f => ({ ...f, fechaInicioRequerida: d.toISOString().split("T")[0] }));
+  };
+
+  const abrirNuevo = () => {
+    setError("");
+    setOrdenesCreadas([]);
+    setForm({ ...FORM_PED_INIT, id: crypto.randomUUID(), numeroPedido: generarNumeroPedido(), fechaCreacion: new Date().toISOString().split("T")[0], creadoPor: sesion?.nombre || "", historial: [{ fecha: new Date().toISOString(), estado: "Borrador", usuario: sesion?.nombre || "" }] });
+    setModoNuevo(true);
+    setVista("form");
+  };
+
+  const abrirEditar = (p) => {
+    setError("");
+    setOrdenesCreadas([]);
+    setForm({ ...p });
+    setModoNuevo(false);
+    setVista("form");
+  };
+
+  const guardar = () => {
+    if (!form.cliente.trim()) { setError("El nombre del cliente es obligatorio."); return; }
+    setError("");
+    setPedidos(prev => {
+      const existe = prev.find(p => p.id === form.id);
+      return existe ? prev.map(p => p.id === form.id ? { ...form } : p) : [{ ...form }, ...prev];
+    });
+    if (modoNuevo) {
+      setModoNuevo(false);
+    } else {
+      setVista("lista");
+    }
+  };
+
+  const eliminar = async (id) => {
+    await supabase.from("pedidos").delete().eq("id", id);
+    setPedidos(prev => prev.filter(p => p.id !== id));
+    setConfirmDel(null);
+  };
+
+  const agregarRef = (cat) => {
+    const tallasMap = {};
+    (cat.tallas || []).forEach(t => { tallasMap[t] = 0; });
+    setForm(f => ({ ...f, referencias: [...f.referencias, { catalogoId: cat.id, nombre: cat.nombre, descripcion: cat.descripcion || "", tallas: tallasMap, precioUnitario: 0, descuento: 0, colores: "", notasRef: "" }] }));
+    setShowAddRef(false);
+    setSearchCat("");
+  };
+
+  const confirmarRefDev = () => {
+    if (!refDevForm.nombre.trim()) return;
+    if (refDevForm.tallasActivas.length === 0) return;
+    const tallasMap = {};
+    refDevForm.tallasActivas.forEach(t => { tallasMap[t] = refDevForm.tallasQty[t] || 0; });
+    setForm(f => ({ ...f, referencias: [...f.referencias, { catalogoId: null, nombre: refDevForm.nombre.trim(), descripcion: refDevForm.descripcion.trim(), tallas: tallasMap, precioUnitario: refDevForm.precioUnitario, descuento: refDevForm.descuento, colores: refDevForm.colores, notasRef: refDevForm.notasRef }] }));
+    setRefDevForm(REF_DEV_INIT);
+    setShowAddRefDev(false);
+  };
+
+  const toggleTallasDev = (talla) => {
+    setRefDevForm(f => {
+      const activas = f.tallasActivas.includes(talla)
+        ? f.tallasActivas.filter(t => t !== talla)
+        : [...f.tallasActivas, talla];
+      return { ...f, tallasActivas: activas };
+    });
+  };
+
+  const quitarRef = (idx) => setForm(f => ({ ...f, referencias: f.referencias.filter((_, i) => i !== idx) }));
+
+  const setTallaQty = (refIdx, talla, val) => {
+    setForm(f => {
+      const refs = [...f.referencias];
+      refs[refIdx] = { ...refs[refIdx], tallas: { ...refs[refIdx].tallas, [talla]: parseInt(val) || 0 } };
+      return { ...f, referencias: refs };
+    });
+  };
+
+  const setRefField = (refIdx, field, val) => {
+    setForm(f => {
+      const refs = [...f.referencias];
+      refs[refIdx] = { ...refs[refIdx], [field]: val };
+      return { ...f, referencias: refs };
+    });
+  };
+
+  const inp = (extra = {}) => ({ background: T.bg, border: "1px solid " + T.border, borderRadius: 6, padding: "6px 10px", color: T.text, fontSize: 13, boxSizing: "border-box", width: "100%", ...extra });
+
+  // ── FORMULARIO / DETALLE ──
+  if (vista === "form") {
+    const totTalla  = totalPorTalla();
+    const totalUds  = Object.values(totTalla).reduce((a, b) => a + b, 0);
+    const valTotal  = valorTotalPedido();
+    const tienePrecios = form.referencias.some(r => (r.precioUnitario || 0) > 0);
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* Cabecera */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => setVista("lista")} style={{ background: "none", border: "none", color: T.cyan, cursor: "pointer", fontSize: 13 }}>← Volver</button>
+            <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>
+              {modoNuevo ? "NUEVO PEDIDO" : (form.numeroPedido || `PEDIDO · ${form.cliente.toUpperCase()}`)}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Badge style={{ background: (PEDS_PCOLOR[form.prioridad] || T.muted) + "22", color: PEDS_PCOLOR[form.prioridad] || T.muted, border: "1px solid " + (PEDS_PCOLOR[form.prioridad] || T.muted) + "55" }}>{form.prioridad}</Badge>
+            <Badge style={{ background: (PEDS_ECOLOR[form.estado] || T.muted) + "22", color: PEDS_ECOLOR[form.estado] || T.muted, border: "1px solid " + (PEDS_ECOLOR[form.estado] || T.muted) + "55" }}>{form.estado}</Badge>
+          </div>
+        </div>
+
+        {/* Datos del cliente */}
+        <Glass style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+          <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em" }}>DATOS DEL CLIENTE</p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>CLIENTE *</label>
+              <input value={form.cliente} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))} style={inp()} />
+            </div>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>CONTACTO</label>
+              <input value={form.contacto} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, contacto: e.target.value }))} style={inp()} />
+            </div>
+            <div style={{ flex: "1 1 130px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>TELÉFONO</label>
+              <input value={form.telefono} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} style={inp()} />
+            </div>
+            <div style={{ flex: "1 1 150px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>OC DEL CLIENTE</label>
+              {puedeEditar
+                ? <input value={form.numeroOC || ""} placeholder="Nº orden de compra" onChange={e => setForm(f => ({ ...f, numeroOC: e.target.value }))} style={inp()} />
+                : <span style={{ padding: "6px 0", fontSize: 13, color: form.numeroOC ? T.cyan : T.muted, fontFamily: form.numeroOC ? T.mono : "inherit" }}>{form.numeroOC || "—"}</span>}
+            </div>
+          </div>
+        </Glass>
+
+        {/* Despacho */}
+        <Glass style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+          <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em" }}>DESPACHO</p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: "2 1 240px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>DIRECCIÓN DE ENTREGA</label>
+              <input value={form.direccionEntrega} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, direccionEntrega: e.target.value }))} style={inp()} />
+            </div>
+            <div style={{ flex: "1 1 140px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>CIUDAD</label>
+              <input value={form.ciudad} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))} style={inp()} />
+            </div>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>TRANSPORTADORA</label>
+              <input value={form.transportadora} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, transportadora: e.target.value }))} style={inp()} />
+            </div>
+          </div>
+        </Glass>
+
+        {/* Condiciones */}
+        <Glass style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+          <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em" }}>CONDICIONES</p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>TIPO DE PEDIDO</label>
+              {puedeEditar ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  {["Producción", "Desarrollo"].map(t => (
+                    <button key={t} onClick={() => setForm(f => ({ ...f, tipo: t, referencias: [] }))}
+                      style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid " + (form.tipo === t ? (t === "Desarrollo" ? T.amber : T.green) : T.border), background: form.tipo === t ? (t === "Desarrollo" ? T.amber + "20" : T.green + "20") : "transparent", color: form.tipo === t ? (t === "Desarrollo" ? T.amber : T.green) : T.muted, cursor: "pointer", fontSize: 12, fontWeight: form.tipo === t ? 700 : 400 }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ padding: "6px 0", fontSize: 13, color: form.tipo === "Desarrollo" ? T.amber : T.green, fontWeight: 700 }}>{form.tipo || "Producción"}</span>
+              )}
+            </div>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>FECHA ENTREGA</label>
+              <input type="date" value={form.fechaEntrega} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))} style={inp({ colorScheme: "dark" })} />
+            </div>
+            <div style={{ flex: "1 1 140px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>PRIORIDAD</label>
+              {puedeEditar
+                ? <select value={form.prioridad} onChange={e => setForm(f => ({ ...f, prioridad: e.target.value }))} style={{ ...inp(), color: PEDS_PCOLOR[form.prioridad] }}>{PEDS_PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}</select>
+                : <span style={{ padding: "6px 0", fontSize: 13, color: PEDS_PCOLOR[form.prioridad] }}>{form.prioridad}</span>}
+            </div>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>CONDICIONES DE PAGO</label>
+              {puedeEditar
+                ? <select value={form.condicionesPago} onChange={e => setForm(f => ({ ...f, condicionesPago: e.target.value }))} style={inp()}>{PEDS_CONDICIONES.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                : <span style={{ padding: "6px 0", fontSize: 13, color: T.cyan }}>{form.condicionesPago}</span>}
+            </div>
+          </div>
+          {/* Anticipo */}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", paddingTop: 4, borderTop: "1px solid " + T.border + "55" }}>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>ANTICIPO ($)</label>
+              {puedeEditar
+                ? <input type="number" min={0} value={form.anticipoMonto || ""} placeholder="0"
+                    onChange={e => setForm(f => ({ ...f, anticipoMonto: parseFloat(e.target.value) || 0 }))}
+                    style={inp()} />
+                : <span style={{ padding: "6px 0", fontSize: 13, color: (form.anticipoMonto || 0) > 0 ? T.text : T.muted }}>
+                    {(form.anticipoMonto || 0) > 0 ? `$${form.anticipoMonto.toLocaleString("es-CO")}` : "—"}
+                  </span>}
+            </div>
+            <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>ESTADO ANTICIPO</label>
+              {puedeEditar ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  {["Pendiente", "Recibido"].map(e => (
+                    <button key={e} onClick={() => setForm(f => ({ ...f, anticipoEstado: e }))}
+                      style={{ flex: 1, padding: "6px 8px", borderRadius: 6, border: "1px solid " + (form.anticipoEstado === e ? (e === "Recibido" ? T.green : T.amber) : T.border), background: form.anticipoEstado === e ? (e === "Recibido" ? T.green + "20" : T.amber + "20") : "transparent", color: form.anticipoEstado === e ? (e === "Recibido" ? T.green : T.amber) : T.muted, cursor: "pointer", fontSize: 11, fontWeight: form.anticipoEstado === e ? 700 : 400 }}>
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ padding: "6px 0", fontSize: 13, fontWeight: 700, color: form.anticipoEstado === "Recibido" ? T.green : T.amber }}>
+                  {form.anticipoEstado || "Pendiente"}
+                </span>
+              )}
+            </div>
+            {(form.anticipoMonto > 0 && valorTotalPedido() > 0) && (
+              <div style={{ flex: "1 1 120px", display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>% DEL TOTAL</label>
+                <span style={{ padding: "6px 0", fontSize: 13, color: T.cyan, fontFamily: T.mono }}>
+                  {Math.round(form.anticipoMonto / valorTotalPedido() * 100)}%
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Planificación */}
+          {(() => {
+            const est = calcularEstimado();
+            return (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", paddingTop: 4, borderTop: "1px solid " + T.border + "55" }}>
+                <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>FECHA INICIO REQUERIDA</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input type="date" value={form.fechaInicioRequerida || ""} readOnly={!puedeEditar}
+                      onChange={e => setForm(f => ({ ...f, fechaInicioRequerida: e.target.value }))}
+                      style={{ ...inp({ colorScheme: "dark", flex: 1 }) }} />
+                    {puedeEditar && est && form.fechaEntrega && (
+                      <button onClick={aplicarFechaInicio}
+                        title={`Calcular: ${est.dias} días antes de la entrega`}
+                        style={{ background: T.cyan + "22", border: "1px solid " + T.cyan + "55", borderRadius: 6, padding: "0 10px", color: T.cyan, cursor: "pointer", fontSize: 11, whiteSpace: "nowrap" }}>
+                        Auto
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {est && (
+                  <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>ESTIMADO DE PRODUCCIÓN</label>
+                    <div style={{ padding: "6px 0", display: "flex", gap: 10, alignItems: "center" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{est.dias} día{est.dias !== 1 ? "s" : ""}</span>
+                      <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{(est.minutos / 60).toFixed(1)} h·hombre</span>
+                    </div>
+                  </div>
+                )}
+                {!est && form.tipo === "Producción" && form.referencias.length > 0 && (
+                  <div style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>ESTIMADO DE PRODUCCIÓN</label>
+                    <span style={{ padding: "6px 0", fontSize: 11, color: T.muted }}>Sin datos SAM en las referencias</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>NOTAS</label>
+            <textarea value={form.notas} readOnly={!puedeEditar} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2}
+              style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 6, padding: "6px 10px", color: T.text, fontSize: 12, resize: "vertical", fontFamily: "inherit", colorScheme: "dark", width: "100%", boxSizing: "border-box" }} />
+          </div>
+        </Glass>
+
+        {/* Referencias */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em" }}>REFERENCIAS ({form.referencias.length})</p>
+          {puedeEditar && form.tipo === "Producción" && (
+            <button onClick={() => setShowAddRef(true)} style={{ background: T.purple + "22", border: "1px solid " + T.purple + "66", borderRadius: 6, padding: "5px 12px", color: T.purple, cursor: "pointer", fontSize: 11, fontFamily: T.mono }}>
+              + Del catálogo
+            </button>
+          )}
+          {puedeEditar && form.tipo === "Desarrollo" && (
+            <button onClick={() => { setRefDevForm(REF_DEV_INIT); setShowAddRefDev(true); }} style={{ background: T.amber + "22", border: "1px solid " + T.amber + "66", borderRadius: 6, padding: "5px 12px", color: T.amber, cursor: "pointer", fontSize: 11, fontFamily: T.mono }}>
+              + Nueva referencia
+            </button>
+          )}
+        </div>
+
+        {form.referencias.length === 0 && (
+          <Glass style={{ padding: 20, textAlign: "center" }}>
+            <p style={{ fontSize: 12, color: T.muted }}>
+              {puedeEditar
+                ? form.tipo === "Desarrollo"
+                  ? "Agrega las referencias a desarrollar (sin necesidad de catálogo)."
+                  : "Agrega referencias del catálogo liberado."
+                : "Sin referencias."}
+            </p>
+          </Glass>
+        )}
+
+        {form.referencias.map((ref, idx) => (
+          <Glass key={idx} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Encabezado */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{ref.nombre}</p>
+                {ref.descripcion && <p style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{ref.descripcion}</p>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 12, color: T.cyan, fontFamily: T.mono }}>{totalRef(ref)} uds</span>
+                {puedeEditar && <button onClick={() => quitarRef(idx)} style={{ background: "none", border: "none", color: "#ff4444", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>}
+              </div>
+            </div>
+
+            {/* Tallas */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {Object.entries(ref.tallas).map(([talla, qty]) => (
+                <div key={talla} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>{talla}</label>
+                  {puedeEditar
+                    ? <input type="number" min={0} value={qty} onChange={e => setTallaQty(idx, talla, e.target.value)} style={{ width: 52, background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 6px", color: T.text, fontSize: 12, textAlign: "center" }} />
+                    : <span style={{ width: 52, padding: "4px 0", textAlign: "center", fontSize: 12, color: T.text }}>{qty}</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* Condiciones comerciales */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", paddingTop: 6, borderTop: "1px solid " + T.border + "44" }}>
+              <div style={{ flex: "1 1 100px", display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>PRECIO UNIT. ($)</label>
+                {puedeEditar
+                  ? <input type="number" min={0} value={ref.precioUnitario || ""} placeholder="0"
+                      onChange={e => setRefField(idx, "precioUnitario", parseFloat(e.target.value) || 0)}
+                      style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                  : <span style={{ fontSize: 12, color: T.text, padding: "4px 0" }}>{ref.precioUnitario ? `$${ref.precioUnitario.toLocaleString("es-CO")}` : "—"}</span>}
+              </div>
+              <div style={{ flex: "1 1 80px", display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>DESCUENTO (%)</label>
+                {puedeEditar
+                  ? <input type="number" min={0} max={100} value={ref.descuento || ""} placeholder="0"
+                      onChange={e => setRefField(idx, "descuento", parseFloat(e.target.value) || 0)}
+                      style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                  : <span style={{ fontSize: 12, color: T.text, padding: "4px 0" }}>{ref.descuento ? `${ref.descuento}%` : "—"}</span>}
+              </div>
+              <div style={{ flex: "2 1 140px", display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>COLORES</label>
+                {puedeEditar
+                  ? <input value={ref.colores || ""} placeholder="ej. Negro, Blanco, Rojo"
+                      onChange={e => setRefField(idx, "colores", e.target.value)}
+                      style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                  : <span style={{ fontSize: 12, color: T.text, padding: "4px 0" }}>{ref.colores || "—"}</span>}
+              </div>
+              {(ref.precioUnitario > 0) && (
+                <div style={{ flex: "1 1 100px", display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>SUBTOTAL</label>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.green, padding: "4px 0" }}>${subtotalRef(ref).toLocaleString("es-CO")}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Notas de referencia */}
+            {(puedeEditar || ref.notasRef) && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>NOTAS DE REFERENCIA</label>
+                {puedeEditar
+                  ? <input value={ref.notasRef || ""} placeholder="Indicaciones especiales para esta referencia..."
+                      onChange={e => setRefField(idx, "notasRef", e.target.value)}
+                      style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                  : <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>{ref.notasRef}</span>}
+              </div>
+            )}
+          </Glass>
+        ))}
+
+        {/* Totalizador */}
+        {form.referencias.length > 0 && (
+          <Glass style={{ padding: 16 }}>
+            <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em", marginBottom: 12 }}>RESUMEN DEL PEDIDO</p>
+            {Object.keys(totTalla).length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                {Object.entries(totTalla).map(([talla, qty]) => (
+                  <div key={talla} style={{ textAlign: "center", minWidth: 52, background: T.surface, border: "1px solid " + T.border, borderRadius: 8, padding: "6px 8px" }}>
+                    <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>{talla}</p>
+                    <p style={{ fontSize: 20, fontWeight: 900, color: T.text, lineHeight: 1.2 }}>{qty}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>Total unidades</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: T.mono }}>{totalUds}</span>
+              </div>
+              {tienePrecios && (
+                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid " + T.border, paddingTop: 6 }}>
+                  <span style={{ fontSize: 12, color: T.muted }}>Valor total del pedido</span>
+                  <span style={{ fontSize: 16, fontWeight: 900, color: T.green }}>${valTotal.toLocaleString("es-CO")}</span>
+                </div>
+              )}
+              {form.condicionesPago && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: T.muted }}>Condiciones de pago</span>
+                  <span style={{ fontSize: 12, color: T.cyan }}>{form.condicionesPago}</span>
+                </div>
+              )}
+            </div>
+          </Glass>
+        )}
+
+        {/* Progreso de producción */}
+        {ordenesDelPedido.length > 0 && (
+          <Glass style={{ padding: 16, borderColor: T.green + "44" }}>
+            <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em", marginBottom: 12 }}>PROGRESO DE PRODUCCIÓN</p>
+            {ordenesDelPedido.map(o => {
+              const pct = o.cantidadTotal ? Math.round(o.cantidadProducida / o.cantidadTotal * 100) : 0;
+              return (
+                <div key={o.id} style={{ marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{o.referencia}</span>
+                    <span style={{ fontSize: 11, fontFamily: T.mono, color: T.muted }}>{o.cantidadProducida}/{o.cantidadTotal} uds · {pct}%</span>
+                  </div>
+                  <ProgressBar value={pct} />
+                </div>
+              );
+            })}
+          </Glass>
+        )}
+
+        {/* Generar órdenes — Director */}
+        {esDirector && !modoNuevo && (
+          <Glass style={{ padding: 16, borderColor: yaGenerado ? T.green + "55" : T.cyan + "55" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: yaGenerado ? T.green : T.cyan }}>
+                  {yaGenerado ? `✓ Órdenes de producción generadas (${ordenesDelPedido.length})` : "Generar Órdenes de Producción"}
+                </p>
+                {yaGenerado
+                  ? <p style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{ordenesDelPedido.map(o => o.referencia).join(" · ")}</p>
+                  : <p style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>
+                      {form.estado !== "Confirmado"
+                        ? "El pedido debe estar en estado Confirmado."
+                        : `Se crearán ${form.referencias.filter(r => Object.values(r.tallas).some(q => q > 0)).length} orden(es) de producción.`}
+                    </p>}
+                {ordenesCreadas.length > 0 && <p style={{ fontSize: 11, color: T.green, marginTop: 4 }}>Órdenes creadas: {ordenesCreadas.join(", ")}</p>}
+              </div>
+              {!yaGenerado && form.estado === "Confirmado" && form.referencias.some(r => Object.values(r.tallas).some(q => q > 0)) && (
+                <button onClick={generarOrdenes}
+                  style={{ background: T.cyan, border: "none", borderRadius: 7, padding: "8px 18px", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>
+                  Generar órdenes
+                </button>
+              )}
+            </div>
+          </Glass>
+        )}
+
+        {/* Historial de estados */}
+        {(form.historial || []).length > 0 && (
+          <Glass style={{ padding: 16 }}>
+            <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.1em", marginBottom: 10 }}>HISTORIAL</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[...(form.historial || [])].reverse().map((h, i, arr) => (
+                <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", paddingBottom: i < arr.length - 1 ? 8 : 0, borderBottom: i < arr.length - 1 ? "1px solid " + T.border + "44" : "none" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: PEDS_ECOLOR[h.estado] || T.muted, marginTop: 5, flexShrink: 0 }} />
+                  <div>
+                    <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{h.estado}</span>
+                    <span style={{ fontSize: 11, color: T.muted }}> — {h.usuario}</span>
+                    <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, marginTop: 2 }}>
+                      {new Date(h.fecha).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Glass>
+        )}
+
+        {/* Mensajes de error */}
+        {error && <p style={{ fontSize: 12, color: "#ff4444", textAlign: "right" }}>{error}</p>}
+
+        {/* Acciones */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", paddingTop: 4 }}>
+          <button onClick={() => setVista("lista")} style={{ background: "none", border: "1px solid " + T.border, borderRadius: 7, padding: "8px 18px", color: T.muted, cursor: "pointer", fontSize: 12 }}>
+            {modoNuevo ? "Cancelar" : "← Lista"}
+          </button>
+          {!modoNuevo && form.estado === "En producción" && (esComercial || esDirector) && (
+            <button onClick={marcarEntregado}
+              style={{ background: T.purple + "22", border: "1px solid " + T.purple + "66", borderRadius: 7, padding: "8px 18px", color: T.purple, cursor: "pointer", fontSize: 12 }}>
+              Marcar entregado
+            </button>
+          )}
+          {!modoNuevo && form.estado === "Borrador" && esComercial && (
+            <button onClick={confirmarPedido}
+              style={{ background: T.cyan + "22", border: "1px solid " + T.cyan + "66", borderRadius: 7, padding: "8px 18px", color: T.cyan, cursor: "pointer", fontSize: 12 }}>
+              Confirmar pedido
+            </button>
+          )}
+          {(puedeEditar || (esDirector && !modoNuevo)) && (
+            <button onClick={guardar} style={{ background: T.purple, border: "none", borderRadius: 7, padding: "8px 20px", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+              {modoNuevo ? "Crear pedido" : "Guardar cambios"}
+            </button>
+          )}
+        </div>
+
+        {/* Modal referencia de desarrollo */}
+        {showAddRefDev && (
+          <div style={{ position: "fixed", inset: 0, background: "#000b", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Glass style={{ width: 520, maxWidth: "95vw", maxHeight: "85vh", display: "flex", flexDirection: "column", gap: 14, padding: 20, overflowY: "auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <p style={{ fontWeight: 700, fontSize: 14, color: T.amber }}>Nueva referencia de desarrollo</p>
+                <button onClick={() => setShowAddRefDev(false)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 20 }}>×</button>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
+                <div>
+                  <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>NOMBRE *</label>
+                  <input value={refDevForm.nombre} onChange={e => setRefDevForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Nombre de la referencia"
+                    style={{ ...inp(), marginTop: 4 }} autoFocus />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>DESCRIPCIÓN</label>
+                  <input value={refDevForm.descripcion} onChange={e => setRefDevForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="Descripción breve"
+                    style={{ ...inp(), marginTop: 4 }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>TALLAS *</label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  {TALLAS_DISPONIBLES.map(t => {
+                    const activa = refDevForm.tallasActivas.includes(t);
+                    return (
+                      <button key={t} onClick={() => toggleTallasDev(t)}
+                        style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid " + (activa ? T.amber : T.border), background: activa ? T.amber + "20" : "transparent", color: activa ? T.amber : T.muted, fontFamily: T.mono, fontSize: 12, fontWeight: activa ? 700 : 400, cursor: "pointer" }}>
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+                {refDevForm.tallasActivas.length > 0 && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                    {refDevForm.tallasActivas.map(t => (
+                      <div key={t} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                        <label style={{ fontSize: 9, color: T.amber, fontFamily: T.mono }}>{t}</label>
+                        <input type="number" min={0} value={refDevForm.tallasQty[t] || ""} placeholder="0"
+                          onChange={e => setRefDevForm(f => ({ ...f, tallasQty: { ...f.tallasQty, [t]: parseInt(e.target.value) || 0 } }))}
+                          style={{ width: 56, background: T.bg, border: "1px solid " + T.amber + "66", borderRadius: 5, padding: "4px 6px", color: T.text, fontSize: 12, textAlign: "center" }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", borderTop: "1px solid " + T.border + "55", paddingTop: 10 }}>
+                <div style={{ flex: "1 1 110px", display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>PRECIO UNIT. ($)</label>
+                  <input type="number" min={0} value={refDevForm.precioUnitario || ""} placeholder="0"
+                    onChange={e => setRefDevForm(f => ({ ...f, precioUnitario: parseFloat(e.target.value) || 0 }))}
+                    style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ flex: "1 1 90px", display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>DESCUENTO (%)</label>
+                  <input type="number" min={0} max={100} value={refDevForm.descuento || ""} placeholder="0"
+                    onChange={e => setRefDevForm(f => ({ ...f, descuento: parseFloat(e.target.value) || 0 }))}
+                    style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ flex: "2 1 140px", display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>COLORES</label>
+                  <input value={refDevForm.colores} placeholder="ej. Negro, Blanco" onChange={e => setRefDevForm(f => ({ ...f, colores: e.target.value }))}
+                    style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>NOTAS</label>
+                <input value={refDevForm.notasRef} placeholder="Indicaciones especiales..." onChange={e => setRefDevForm(f => ({ ...f, notasRef: e.target.value }))}
+                  style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 5, padding: "4px 8px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} />
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => setShowAddRefDev(false)} style={{ background: "none", border: "1px solid " + T.border, borderRadius: 6, padding: "7px 16px", color: T.muted, cursor: "pointer", fontSize: 12 }}>Cancelar</button>
+                <button onClick={confirmarRefDev}
+                  disabled={!refDevForm.nombre.trim() || refDevForm.tallasActivas.length === 0}
+                  style={{ background: refDevForm.nombre.trim() && refDevForm.tallasActivas.length > 0 ? T.amber : T.border, border: "none", borderRadius: 6, padding: "7px 18px", color: "#000", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                  Agregar referencia
+                </button>
+              </div>
+            </Glass>
+          </div>
+        )}
+
+        {/* Modal catálogo */}
+        {showAddRef && (
+          <div style={{ position: "fixed", inset: 0, background: "#000b", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Glass style={{ width: 480, maxWidth: "95vw", maxHeight: "80vh", display: "flex", flexDirection: "column", gap: 12, padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <p style={{ fontWeight: 700, fontSize: 14 }}>Agregar referencia del catálogo</p>
+                <button onClick={() => { setShowAddRef(false); setSearchCat(""); }} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 20 }}>×</button>
+              </div>
+              <input placeholder="Buscar referencia..." value={searchCat} onChange={e => setSearchCat(e.target.value)}
+                style={{ background: T.bg, border: "1px solid " + T.border, borderRadius: 6, padding: "7px 12px", color: T.text, fontSize: 12, width: "100%", boxSizing: "border-box" }} autoFocus />
+              <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                {catFiltrado.length === 0 && (
+                  <p style={{ fontSize: 12, color: T.muted, textAlign: "center", padding: 20 }}>
+                    {catLiberado.length === 0 ? "No hay fichas técnicas liberadas en el catálogo." : "Sin coincidencias."}
+                  </p>
+                )}
+                {catFiltrado.map(cat => {
+                  const yaAgregada = form.referencias.some(r => r.catalogoId === cat.id);
+                  return (
+                    <div key={cat.id} onClick={() => !yaAgregada && agregarRef(cat)}
+                      style={{ padding: "10px 14px", borderRadius: 7, border: "1px solid " + T.border, cursor: yaAgregada ? "default" : "pointer", opacity: yaAgregada ? 0.4 : 1, background: T.surface, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{cat.nombre}</p>
+                        <p style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>Tallas: {(cat.tallas || []).join(", ") || "—"} · {(cat.operaciones || []).length} operaciones</p>
+                      </div>
+                      <span style={{ fontSize: 10, fontFamily: T.mono, color: yaAgregada ? T.muted : T.purple }}>
+                        {yaAgregada ? "YA AGREGADA" : "SELECCIONAR"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Glass>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── LISTA DE PEDIDOS ──
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>ÓRDENES DE PEDIDO</p>
+        {esComercial && (
+          <button onClick={abrirNuevo} style={{ background: T.purple + "22", border: "1px solid " + T.purple + "66", borderRadius: 7, padding: "7px 16px", color: T.purple, cursor: "pointer", fontSize: 12, fontFamily: T.mono }}>
+            + Nuevo pedido
+          </button>
+        )}
+      </div>
+
+      {pedidos.length === 0 && (
+        <Glass style={{ padding: 32, textAlign: "center" }}>
+          <ShoppingCart size={36} color={T.purple} strokeWidth={1} style={{ margin: "0 auto 12px" }} />
+          <p style={{ fontSize: 13, color: T.muted }}>No hay pedidos registrados.</p>
+          {esComercial && <p style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>Crea el primer pedido con el botón superior.</p>}
+        </Glass>
+      )}
+
+      {pedidos.map(p => (
+        <Glass key={p.id} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8, cursor: "pointer" }} onClick={() => abrirEditar(p)}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              {p.numeroPedido && <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, marginBottom: 2 }}>{p.numeroPedido}</p>}
+              <p style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{p.cliente}</p>
+              {p.contacto && <p style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{p.contacto}{p.telefono ? ` · ${p.telefono}` : ""}</p>}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Badge style={{ background: (PEDS_PCOLOR[p.prioridad] || T.muted) + "22", color: PEDS_PCOLOR[p.prioridad] || T.muted, border: "1px solid " + (PEDS_PCOLOR[p.prioridad] || T.muted) + "55" }}>{p.prioridad}</Badge>
+              <Badge style={{ background: (PEDS_ECOLOR[p.estado] || T.muted) + "22", color: PEDS_ECOLOR[p.estado] || T.muted, border: "1px solid " + (PEDS_ECOLOR[p.estado] || T.muted) + "55" }}>{p.estado}</Badge>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>
+              {p.referencias?.length || 0} ref{(p.referencias?.length || 0) !== 1 ? "s" : ""} · {totalPed(p)} uds
+            </span>
+            {p.numeroOC && <span style={{ fontSize: 11, color: T.cyan, fontFamily: T.mono }}>OC: {p.numeroOC}</span>}
+            {p.fechaEntrega && <span style={{ fontSize: 11, color: T.amber, fontFamily: T.mono }}>Entrega: {p.fechaEntrega}</span>}
+            {p.fechaInicioRequerida && <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Inicio: {p.fechaInicioRequerida}</span>}
+            {(p.anticipoMonto > 0) && (
+              <span style={{ fontSize: 11, fontFamily: T.mono, color: p.anticipoEstado === "Recibido" ? T.green : T.amber }}>
+                Anticipo {p.anticipoEstado === "Recibido" ? "✓" : "⚠"} ${(p.anticipoMonto || 0).toLocaleString("es-CO")}
+              </span>
+            )}
+            {p.condicionesPago && p.condicionesPago !== "Contado" && <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{p.condicionesPago}</span>}
+            <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Creado: {p.fechaCreacion}</span>
+            {p.estado === "En producción" && <span style={{ fontSize: 11, color: T.green, fontFamily: T.mono }}>En producción</span>}
+            {p.estado === "Entregado" && <span style={{ fontSize: 11, color: T.purple, fontFamily: T.mono }}>✓ Entregado</span>}
+          </div>
+          {p.notas && <p style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>{p.notas}</p>}
+          {confirmDel === p.id ? (
+            <div onClick={e => e.stopPropagation()} style={{ display: "flex", gap: 8, paddingTop: 8, borderTop: "1px solid " + T.border, alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: "#ff4444", flex: 1 }}>¿Eliminar este pedido?</span>
+              <button onClick={() => eliminar(p.id)} style={{ background: "#ff4444", border: "none", borderRadius: 5, padding: "4px 12px", color: "#fff", cursor: "pointer", fontSize: 11 }}>Eliminar</button>
+              <button onClick={() => setConfirmDel(null)} style={{ background: "none", border: "1px solid " + T.border, borderRadius: 5, padding: "4px 10px", color: T.muted, cursor: "pointer", fontSize: 11 }}>Cancelar</button>
+            </div>
+          ) : (
+            esComercial && p.estado === "Borrador" && (
+              <button onClick={e => { e.stopPropagation(); setConfirmDel(p.id); }}
+                style={{ background: "none", border: "none", color: "#ff444488", cursor: "pointer", fontSize: 11, textAlign: "left", padding: 0, marginTop: 2 }}>
+                Eliminar pedido
+              </button>
+            )
+          )}
+        </Glass>
+      ))}
+    </div>
+  );
+};
+
+// ─── PIPELINE DE PRODUCCIÓN (Fase 4) ──────────────────────────────────────────
+
+const PipelineProduccion = ({ ordenes }) => {
+  const etapas = [
+    { id: "Pendiente",  label: "Pendientes",  color: T.muted  },
+    { id: "En proceso", label: "En proceso",  color: T.cyan   },
+    { id: "Completado", label: "Completados", color: T.green  },
+  ];
+  const FEATURES = [
+    "Flujo completo: Pedido → Compra → Corte → Confección → Calidad → Despacho",
+    "Timeline por orden con fechas reales vs. planeadas",
+    "Alertas de retraso y cuellos de botella",
+    "Aprobación de solicitudes de compra pendientes",
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>PIPELINE DE PRODUCCIÓN</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {etapas.map(e => {
+          const count = ordenes.filter(o => o.estado === e.id).length;
+          return (
+            <div key={e.id} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid " + e.color + "33", borderRadius: 12, padding: "14px 12px", textAlign: "center" }}>
+              <p style={{ fontSize: 28, fontWeight: 900, color: e.color, fontFamily: T.mono, lineHeight: 1 }}>{count}</p>
+              <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginTop: 4 }}>{e.label.toUpperCase()}</p>
+            </div>
+          );
+        })}
+      </div>
+      <Glass style={{ padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+        <GitBranch size={36} color={T.orange} strokeWidth={1} />
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 14, fontWeight: 800, color: T.text }}>Vista Pipeline Completa</p>
+          <p style={{ fontSize: 11, color: T.orange, fontFamily: T.mono, marginTop: 4 }}>FASE 4 — EN CONSTRUCCIÓN</p>
+        </div>
+        <div style={{ width: "100%", borderTop: "1px solid " + T.border, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {FEATURES.map(f => (
+            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.orange, flexShrink: 0 }} />
+              <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{f}</p>
+            </div>
+          ))}
+        </div>
+      </Glass>
+    </div>
+  );
+};
+
+// ─── GESTIÓN DE INVENTARIO Y COMPRAS (Fase 5) ─────────────────────────────────
+
+const GestionInventario = () => {
+  const FEATURES = [
+    "Inventario de telas e insumos con stock actual",
+    "Cálculo automático de faltantes por orden de producción",
+    "Solicitud de compra — aprobación del Director",
+    "Registro de entradas a bodega",
+    "Alertas de stock mínimo por material",
+    "Historial de compras por proveedor",
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>INVENTARIO Y COMPRAS</p>
+      <Glass style={{ padding: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+        <Package size={44} color={T.cyan} strokeWidth={1} />
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Módulo en construcción</p>
+          <p style={{ fontSize: 11, color: T.cyan, fontFamily: T.mono, marginTop: 4 }}>FASE 5 · JEFE DE COMPRAS</p>
+        </div>
+        <div style={{ width: "100%", borderTop: "1px solid " + T.border, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {FEATURES.map(f => (
+            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.cyan, flexShrink: 0 }} />
+              <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{f}</p>
+            </div>
+          ))}
+        </div>
+      </Glass>
+    </div>
+  );
+};
+
+// ─── GESTIÓN DE CORTE (Fase 6) ────────────────────────────────────────────────
+
+const GestionCorte = () => {
+  const FEATURES = [
+    "Orden de corte generada desde la orden de producción",
+    "Trazo, tendido y marcada de tela",
+    "Registro de piezas cortadas por talla",
+    "Corte externo a terceros con seguimiento",
+    "Piezas cortadas habilitan el inicio de confección",
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>MÓDULO DE CORTE</p>
+      <Glass style={{ padding: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+        <Scissors size={44} color={T.amber} strokeWidth={1} />
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Módulo en construcción</p>
+          <p style={{ fontSize: 11, color: T.amber, fontFamily: T.mono, marginTop: 4 }}>FASE 6 · JEFE DE CORTE</p>
+        </div>
+        <div style={{ width: "100%", borderTop: "1px solid " + T.border, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {FEATURES.map(f => (
+            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.amber, flexShrink: 0 }} />
+              <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{f}</p>
+            </div>
+          ))}
+        </div>
+      </Glass>
+    </div>
+  );
+};
+
+// ─── GESTIÓN DE FICHAS TÉCNICAS ───────────────────────────────────────────────
+
+const FORM_CAT_INIT = {
+  nombre: "", descripcion: "", cliente: "", temporada: "",
+  estado: "Borrador", numPrototipo: 0,
+  tallas: [], operaciones: [],
+  insumos: [],
+  corte: { direccion: "Al hilo", tendido: "Simple", consumoPorTalla: {}, notas: "" },
+  historial: [],
+  fechaCreacion: "", fechaAprobacion: null, fechaLiberacion: null,
+};
+const UNIDADES_INS  = ["m", "mt", "yds", "kg", "g", "und", "par", "jgo", "rollo"];
+const DIRS_CORTE    = ["Al hilo", "Sesgado", "En biés", "A cuadros", "A rayas"];
+const TIPOS_TENDIDO = ["Simple", "Doble cara", "Tubular", "En biés"];
 
 const GestionCatalogo = ({ catalogo, setCatalogo, maquinas = [], setMaquinas, sesion }) => {
-  const [vista, setVista] = useState("lista");
-  const [refSel, setRefSel] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ nombre: "", descripcion: "", tallas: [], operaciones: [] });
-  const [opForm, setOpForm] = useState({ operacion: "", sam: "", maquina: "" });
+  const [vista, setVista]             = useState("lista");
+  const [tabForm, setTabForm]         = useState("info");
+  const [refSel, setRefSel]           = useState(null);
+  const [form, setForm]               = useState(FORM_CAT_INIT);
+  const [insumoForm, setInsumoForm]   = useState({ material: "", referencia: "", unidad: "m", consumo: "" });
+  const [editInsumoIdx, setEditInsumoIdx] = useState(null);
+  const [showForm, setShowForm]       = useState(false);
+  const [opForm, setOpForm]           = useState({ operacion: "", sam: "", maquina: "" });
   const [nuevaMaquinaInput, setNuevaMaquinaInput] = useState("");
-  const [showNuevaMaquina, setShowNuevaMaquina] = useState(false);
-  const [guardandoMaquina, setGuardandoMaquina] = useState(false);
-  const [buscar, setBuscar] = useState("");
+  const [showNuevaMaquina, setShowNuevaMaquina]   = useState(false);
+  const [guardandoMaquina, setGuardandoMaquina]   = useState(false);
+  const [buscar, setBuscar]           = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [confirmarEliminarId, setConfirmarEliminarId] = useState(null);
+  const [notaProto, setNotaProto]     = useState("");
+  const [showProtoModal, setShowProtoModal] = useState(null);
+
+  const INP = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "8px 10px", color: T.text, fontSize: 13, outline: "none", fontFamily: T.font, width: "100%", borderRadius: 6, boxSizing: "border-box" };
+  const [editandoIdx, setEditandoIdx] = useState(null);
+  const [editOpForm, setEditOpForm]   = useState({ operacion: "", sam: "", maquina: "" });
+  const [draggingIdx, setDraggingIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [errForm, setErrForm]         = useState("");
+
+  const eColor = (e) => ({ "Borrador": T.muted, "En Prototipo": T.yellow, "Aprobada": T.blue, "Liberada": T.green }[e] || T.muted);
+
+  const toggleTalla = (t) => setForm(p => ({
+    ...p,
+    tallas: p.tallas.includes(t) ? p.tallas.filter(x => x !== t) : [...p.tallas, t],
+    corte: { ...p.corte, consumoPorTalla: p.tallas.includes(t) ? Object.fromEntries(Object.entries(p.corte.consumoPorTalla).filter(([k]) => k !== t)) : p.corte.consumoPorTalla }
+  }));
 
   const eliminarRef = async (id) => {
     await supabase.from("catalogo").delete().eq("id", id);
@@ -1633,19 +2839,61 @@ const GestionCatalogo = ({ catalogo, setCatalogo, maquinas = [], setMaquinas, se
     setConfirmarEliminarId(null);
   };
 
-  const INP = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "8px 10px", color: T.text, fontSize: 13, outline: "none", fontFamily: T.font, width: "100%", borderRadius: 6 };
+  const editarRef = (ref) => {
+    setForm({
+      nombre: ref.nombre || "", descripcion: ref.descripcion || "",
+      cliente: ref.cliente || "", temporada: ref.temporada || "",
+      estado: ref.estado || "Borrador", numPrototipo: ref.numPrototipo || 0,
+      tallas: [...(ref.tallas || [])], operaciones: [...(ref.operaciones || [])],
+      insumos: [...(ref.insumos || [])],
+      corte: { direccion: "Al hilo", tendido: "Simple", consumoPorTalla: {}, notas: "", ...(ref.corte || {}) },
+      historial: [...(ref.historial || [])],
+      fechaCreacion: ref.fechaCreacion || new Date().toLocaleDateString("es-CO"),
+      fechaAprobacion: ref.fechaAprobacion || null, fechaLiberacion: ref.fechaLiberacion || null,
+    });
+    setRefSel(ref.id); setVista("form"); setTabForm("info"); setErrForm("");
+  };
 
-  const toggleTalla = (t) => setForm(p => ({
-    ...p,
-    tallas: p.tallas.includes(t) ? p.tallas.filter(x => x !== t) : [...p.tallas, t]
-  }));
+  const nuevaRef = () => {
+    setForm({ ...FORM_CAT_INIT, fechaCreacion: new Date().toLocaleDateString("es-CO") });
+    setRefSel(null); setVista("form"); setTabForm("info"); setErrForm("");
+  };
 
+  const guardar = () => {
+    if (!form.nombre.trim()) { setErrForm("Ingresa el código/nombre de la referencia"); setTabForm("info"); return; }
+    if (!form.tallas.length) { setErrForm("Selecciona al menos una talla"); setTabForm("info"); return; }
+    if (!form.operaciones.length) { setErrForm("Agrega al menos una operación de confección"); setTabForm("operaciones"); return; }
+    setErrForm("");
+    const entry = { ...form, id: refSel || "CAT-" + Date.now() };
+    setCatalogo(prev => refSel ? prev.map(r => r.id === refSel ? entry : r) : [...prev, entry]);
+    setVista("lista"); setRefSel(null); setForm(FORM_CAT_INIT);
+  };
+
+  // ── Insumos ──
+  const agregarInsumo = () => {
+    if (!insumoForm.material.trim() || !insumoForm.consumo) return;
+    const ins = { id: Date.now(), ...insumoForm, consumo: parseFloat(insumoForm.consumo) };
+    if (editInsumoIdx !== null) {
+      setForm(p => ({ ...p, insumos: p.insumos.map((x, i) => i === editInsumoIdx ? ins : x) }));
+      setEditInsumoIdx(null);
+    } else {
+      setForm(p => ({ ...p, insumos: [...p.insumos, ins] }));
+    }
+    setInsumoForm({ material: "", referencia: "", unidad: "m", consumo: "" });
+  };
+
+  const editarInsumo = (idx) => {
+    const ins = form.insumos[idx];
+    setInsumoForm({ material: ins.material, referencia: ins.referencia || "", unidad: ins.unidad, consumo: String(ins.consumo) });
+    setEditInsumoIdx(idx);
+  };
+
+  // ── Operaciones ──
   const agregarOp = () => {
     if (!opForm.operacion.trim() || !opForm.sam) return;
     setForm(p => ({ ...p, operaciones: [...p.operaciones, { operacion: opForm.operacion.trim(), sam: parseFloat(opForm.sam), maquina: opForm.maquina }] }));
     setOpForm({ operacion: "", sam: "", maquina: "" });
-    setShowNuevaMaquina(false);
-    setNuevaMaquinaInput("");
+    setShowNuevaMaquina(false); setNuevaMaquinaInput("");
   };
 
   const guardarNuevaMaquina = async () => {
@@ -1653,323 +2901,340 @@ const GestionCatalogo = ({ catalogo, setCatalogo, maquinas = [], setMaquinas, se
     if (!nombre) return;
     setGuardandoMaquina(true);
     const { data, error } = await supabase.from("maquinas").insert({ nombre }).select().single();
-    if (!error && data) {
-      setMaquinas(prev => [...prev, { id: data.id, nombre: data.nombre }]);
-      setOpForm(p => ({ ...p, maquina: data.nombre }));
-    }
-    setNuevaMaquinaInput("");
-    setShowNuevaMaquina(false);
-    setGuardandoMaquina(false);
+    if (!error && data) { setMaquinas(prev => [...prev, { id: data.id, nombre: data.nombre }]); setOpForm(p => ({ ...p, maquina: data.nombre })); }
+    setNuevaMaquinaInput(""); setShowNuevaMaquina(false); setGuardandoMaquina(false);
   };
-
-  const moverOp = (idx, dir) => {
-    setForm(p => {
-      const ops = [...p.operaciones];
-      const target = idx + dir;
-      if (target < 0 || target >= ops.length) return p;
-      [ops[idx], ops[target]] = [ops[target], ops[idx]];
-      return { ...p, operaciones: ops };
-    });
-  };
-
-  const [editandoIdx, setEditandoIdx] = useState(null);
-  const [editOpForm, setEditOpForm] = useState({ operacion: "", sam: "", maquina: "" });
-  const [draggingIdx, setDraggingIdx] = useState(null);
-  const [dragOverIdx, setDragOverIdx] = useState(null);
-  const [errForm, setErrForm] = useState("");
-
-  const iniciarEditOp = (idx) => {
-    const op = form.operaciones[idx];
-    setEditandoIdx(idx);
-    setEditOpForm({ operacion: op.operacion, sam: String(op.sam), maquina: op.maquina || "" });
-  };
-
-  const guardarEditOp = (idx) => {
-    if (!editOpForm.operacion.trim() || !editOpForm.sam) return;
-    setForm(p => {
-      const ops = [...p.operaciones];
-      ops[idx] = { operacion: editOpForm.operacion.trim(), sam: parseFloat(editOpForm.sam), maquina: editOpForm.maquina };
-      return { ...p, operaciones: ops };
-    });
-    setEditandoIdx(null);
-  };
-
-  const cancelarEditOp = () => setEditandoIdx(null);
 
   const handleDrop = (targetIdx) => {
     if (draggingIdx === null || draggingIdx === targetIdx) return;
-    setForm(p => {
-      const ops = [...p.operaciones];
-      const [item] = ops.splice(draggingIdx, 1);
-      ops.splice(targetIdx, 0, item);
-      return { ...p, operaciones: ops };
-    });
-    setDraggingIdx(null);
-    setDragOverIdx(null);
+    setForm(p => { const ops = [...p.operaciones]; const [item] = ops.splice(draggingIdx, 1); ops.splice(targetIdx, 0, item); return { ...p, operaciones: ops }; });
+    setDraggingIdx(null); setDragOverIdx(null);
+  };
+  const iniciarEditOp = (idx) => { const op = form.operaciones[idx]; setEditandoIdx(idx); setEditOpForm({ operacion: op.operacion, sam: String(op.sam), maquina: op.maquina || "" }); };
+  const guardarEditOp = (idx) => {
+    if (!editOpForm.operacion.trim() || !editOpForm.sam) return;
+    setForm(p => { const ops = [...p.operaciones]; ops[idx] = { operacion: editOpForm.operacion.trim(), sam: parseFloat(editOpForm.sam), maquina: editOpForm.maquina }; return { ...p, operaciones: ops }; });
+    setEditandoIdx(null);
   };
 
-  const guardar = () => {
-    if (!form.nombre.trim()) { setErrForm("Ingresa el nombre de la referencia"); return; }
-    if (!form.tallas.length) { setErrForm("Selecciona al menos una talla"); return; }
-    if (!form.operaciones.length) { setErrForm("Agrega al menos una operación"); return; }
-    setErrForm("");
-    if (refSel) {
-      setCatalogo(prev => prev.map(r => r.id === refSel ? { ...r, ...form } : r));
-    } else {
-      setCatalogo(prev => [...prev, { ...form, id: "CAT-" + Date.now() }]);
-    }
-    setVista("lista"); setRefSel(null);
-    setForm({ nombre: "", descripcion: "", tallas: [], operaciones: [] });
+  // ── Workflow prototipos ──
+  const ejecutarProto = () => {
+    const fecha = new Date().toLocaleDateString("es-CO");
+    let nuevoEstado = form.estado, nuevoNum = form.numPrototipo, histEntry = null;
+    if (showProtoModal === "iniciar")  { nuevoEstado = "En Prototipo"; nuevoNum = (form.numPrototipo || 0) + 1; histEntry = { numero: nuevoNum, fecha, observaciones: notaProto || "Inicio de prototipo", aprobado: false }; }
+    if (showProtoModal === "aprobar")  { nuevoEstado = "Aprobada"; histEntry = { numero: form.numPrototipo, fecha, observaciones: notaProto || "Prototipo aprobado", aprobado: true }; }
+    if (showProtoModal === "rechazar") { nuevoNum = (form.numPrototipo || 0) + 1; histEntry = { numero: form.numPrototipo, fecha, observaciones: notaProto || "Requiere ajustes", aprobado: false }; }
+    if (showProtoModal === "liberar")  { nuevoEstado = "Liberada"; }
+    setForm(p => ({ ...p, estado: nuevoEstado, numPrototipo: nuevoNum, historial: histEntry ? [...p.historial, histEntry] : p.historial, fechaAprobacion: showProtoModal === "aprobar" ? fecha : p.fechaAprobacion, fechaLiberacion: showProtoModal === "liberar" ? fecha : p.fechaLiberacion }));
+    setShowProtoModal(null); setNotaProto("");
   };
 
-  const editarRef = (ref) => {
-    setForm({ nombre: ref.nombre, descripcion: ref.descripcion, tallas: [...ref.tallas], operaciones: [...ref.operaciones] });
-    setRefSel(ref.id);
-    setVista("form");
-  };
+  const filtradas = catalogo.filter(r => {
+    const q = buscar.toLowerCase();
+    return (r.nombre.toLowerCase().includes(q) || (r.descripcion || "").toLowerCase().includes(q)) &&
+           (filtroEstado === "Todos" || (r.estado || "Borrador") === filtroEstado);
+  });
 
-  const nuevaRef = () => {
-    setForm({ nombre: "", descripcion: "", tallas: [], operaciones: [] });
-    setRefSel(null);
-    setVista("form");
-  };
+  const TABS_FORM = [
+    { id: "info", label: "Info" }, { id: "insumos", label: "Insumos" },
+    { id: "corte", label: "Corte" }, { id: "operaciones", label: "Operaciones" },
+    { id: "prototipo", label: "Prototipo" },
+  ];
 
-  const filtradas = catalogo.filter(r =>
-    r.nombre.toLowerCase().includes(buscar.toLowerCase()) ||
-    r.descripcion.toLowerCase().includes(buscar.toLowerCase())
-  );
-
-  if (vista === "form") return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={() => setVista("lista")} style={{ color: T.yellow, fontFamily: T.mono, fontSize: 12, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← VOLVER</button>
-        <p style={{ fontSize: 13, fontWeight: 900, color: T.text, fontFamily: T.font }}>{refSel ? "EDITAR REFERENCIA" : "NUEVA REFERENCIA"}</p>
-      </div>
-
-      <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div>
-            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>NOMBRE / CÓDIGO</p>
-            <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej: CAMISA-001" style={INP} maxLength={50} />
-          </div>
-          <div>
-            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>DESCRIPCIÓN</p>
-            <input value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} placeholder="Ej: Camisa manga larga" style={INP} maxLength={100} />
-          </div>
-        </div>
-
-        {/* Tallas */}
-        <div>
-          <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.12em", marginBottom: 6 }}>TALLAS</p>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {TALLAS_DISPONIBLES.map(t => (
-              <button key={t} onClick={() => toggleTalla(t)}
-                style={{ padding: "6px 14px", background: form.tallas.includes(t) ? "rgba(0,255,136,0.15)" : "rgba(255,255,255,0.04)", border: "1px solid " + (form.tallas.includes(t) ? T.green : T.border), borderRadius: 20, color: form.tallas.includes(t) ? T.green : T.muted, fontFamily: T.mono, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Glass>
-
-      {/* Operaciones */}
-      <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        <p style={{ fontSize: 11, color: T.yellow, fontFamily: T.mono, letterSpacing: "0.12em" }}>SECUENCIA DE OPERACIONES</p>
-
-        {/* Agregar operación */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ flex: 3, minWidth: 140 }}>
-            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>NOMBRE DE LA OPERACIÓN</p>
-            <input value={opForm.operacion} onChange={e => setOpForm(p => ({ ...p, operacion: e.target.value }))}
-              onKeyDown={e => e.key === "Enter" && agregarOp()}
-              placeholder="Ej: Costura de hombros" style={INP} maxLength={80} />
-          </div>
-          <div style={{ flex: 1, minWidth: 80 }}>
-            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>SAM (min)</p>
-            <input type="number" value={opForm.sam} onChange={e => setOpForm(p => ({ ...p, sam: e.target.value }))}
-              onKeyDown={e => e.key === "Enter" && agregarOp()}
-              placeholder="0.0" min={0.1} step={0.1} style={INP} />
-          </div>
-          <div style={{ flex: 2, minWidth: 120 }}>
-            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>MÁQUINA</p>
-            <select value={opForm.maquina} onChange={e => {
-              if (e.target.value === "__nueva__") { setShowNuevaMaquina(true); }
-              else { setOpForm(p => ({ ...p, maquina: e.target.value })); setShowNuevaMaquina(false); }
-            }} style={{ ...INP, boxSizing: "border-box" }}>
-              <option value="">— Sin máquina —</option>
-              {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre}</option>)}
-              <option value="__nueva__">+ Nueva máquina</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <button onClick={agregarOp} style={{ padding: "8px 16px", background: T.green, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 13, cursor: "pointer" }}>+</button>
-          </div>
-        </div>
-        {showNuevaMaquina && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", background: "rgba(0,255,136,0.05)", border: "1px solid rgba(0,255,136,0.2)", borderRadius: 8, padding: "10px 12px" }}>
-            <input value={nuevaMaquinaInput} onChange={e => setNuevaMaquinaInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && guardarNuevaMaquina()}
-              placeholder="Nombre de la nueva máquina" style={{ ...INP, flex: 1, boxSizing: "border-box" }} autoFocus />
-            <button onClick={guardarNuevaMaquina} disabled={guardandoMaquina}
-              style={{ padding: "8px 14px", background: T.green, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 12, cursor: "pointer" }}>
-              {guardandoMaquina ? "..." : "GUARDAR"}
-            </button>
-            <button onClick={() => { setShowNuevaMaquina(false); setNuevaMaquinaInput(""); }}
-              style={{ padding: "8px 12px", background: "transparent", border: "1px solid " + T.border, color: T.muted, borderRadius: 6, fontFamily: T.mono, fontSize: 12, cursor: "pointer" }}>
-              CANCELAR
-            </button>
-          </div>
-        )}
-
-        {/* Lista de operaciones */}
-        {form.operaciones.length === 0 ? (
-          <p style={{ fontSize: 11, color: T.faint, fontFamily: T.mono, textAlign: "center", padding: 12 }}>Sin operaciones — agrega la primera arriba</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {form.operaciones.map((op, idx) => (
-              <div key={idx}
-                draggable={editandoIdx !== idx}
-                onDragStart={() => { setDraggingIdx(idx); setDragOverIdx(null); }}
-                onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
-                onDrop={() => handleDrop(idx)}
-                onDragEnd={() => { setDraggingIdx(null); setDragOverIdx(null); }}
-                style={{
-                  background: dragOverIdx === idx ? "rgba(255,230,0,0.08)" : "rgba(255,255,255,0.03)",
-                  border: "1px solid " + (dragOverIdx === idx ? T.yellow : editandoIdx === idx ? T.yellow : T.border),
-                  borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8,
-                  opacity: draggingIdx === idx ? 0.4 : 1,
-                  transition: "opacity 0.15s, border-color 0.15s, background 0.15s",
-                }}>
-                <span style={{ fontSize: 14, color: T.faint, cursor: editandoIdx === idx ? "default" : "grab", userSelect: "none", paddingRight: 2 }}>⠿</span>
-                <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, width: 20, textAlign: "center" }}>{idx + 1}</span>
-                {editandoIdx === idx ? (
-                  <div style={{ flex: 1, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <input value={editOpForm.operacion} onChange={e => setEditOpForm(p => ({ ...p, operacion: e.target.value }))}
-                      onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)}
-                      style={{ ...INP, flex: 3, minWidth: 100, padding: "4px 8px", fontSize: 12, boxSizing: "border-box" }} maxLength={80} autoFocus />
-                    <input type="number" value={editOpForm.sam} onChange={e => setEditOpForm(p => ({ ...p, sam: e.target.value }))}
-                      onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)}
-                      placeholder="SAM" min={0.1} step={0.1} style={{ ...INP, flex: 1, minWidth: 60, padding: "4px 8px", fontSize: 12, boxSizing: "border-box" }} />
-                    <select value={editOpForm.maquina} onChange={e => setEditOpForm(p => ({ ...p, maquina: e.target.value }))}
-                      style={{ ...INP, flex: 2, minWidth: 100, padding: "4px 8px", fontSize: 12, boxSizing: "border-box" }}>
-                      <option value="">— Sin máquina —</option>
-                      {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre}</option>)}
-                    </select>
-                    <button onClick={() => guardarEditOp(idx)}
-                      style={{ background: T.green, color: "#000", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13, fontWeight: 900 }}>✓</button>
-                    <button onClick={cancelarEditOp}
-                      style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: T.font }}>{op.operacion}</p>
-                      <div style={{ display: "flex", gap: 10 }}>
-                        <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM: {op.sam} min</p>
-                        {op.maquina && <p style={{ fontSize: 10, color: T.cyan, fontFamily: T.mono }}>⚙ {op.maquina}</p>}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => iniciarEditOp(idx)}
-                        style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 11 }}>✎</button>
-                      <button onClick={() => setForm(p => ({ ...p, operaciones: p.operaciones.filter((_, i) => i !== idx) }))}
-                        style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.3)", color: T.red, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-            <div style={{ background: "rgba(255,230,0,0.06)", border: "1px solid rgba(255,230,0,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", justifyContent: "space-between" }}>
-              <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{form.operaciones.length} operaciones</p>
-              <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM total: {form.operaciones.reduce((a, o) => a + o.sam, 0).toFixed(1)} min</p>
-            </div>
-          </div>
-        )}
-      </Glass>
-
-      {errForm && <p style={{ color: T.red, fontSize: 12, fontFamily: T.mono, textAlign: "center" }}>⚠ {errForm}</p>}
-
-      <button onClick={guardar}
-        style={{ padding: "14px 0", background: T.green, color: "#000", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: "pointer" }}>
-        {refSel ? "GUARDAR CAMBIOS" : "CREAR REFERENCIA"}
-      </button>
-    </div>
-  );
-
-  return (
+  // ── VISTA LISTA ──
+  if (vista === "lista") return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>CATÁLOGO DE REFERENCIAS ({catalogo.length})</p>
-        <button onClick={nuevaRef} style={{ background: T.yellow, color: "#000", fontFamily: T.mono, fontWeight: 900, fontSize: 11, padding: "7px 14px", border: "none", cursor: "pointer" }}>+ NUEVA REFERENCIA</button>
+        <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono, letterSpacing: "0.14em" }}>FICHAS TÉCNICAS ({catalogo.length})</p>
+        {["ADMIN","DIRECTOR_PRODUCCION","SUPERVISOR"].includes(sesion?.rol) &&
+          <button onClick={nuevaRef} style={{ background: T.yellow, color: "#000", fontFamily: T.mono, fontWeight: 900, fontSize: 11, padding: "7px 14px", border: "none", cursor: "pointer", borderRadius: 6 }}>+ NUEVA FICHA</button>}
       </div>
-
-      <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar referencia..." style={{ ...INP, padding: "10px 14px" }} />
-
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar referencia..." style={{ ...INP, flex: 1, padding: "8px 12px" }} />
+        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ ...INP, width: "auto" }}>
+          {["Todos","Borrador","En Prototipo","Aprobada","Liberada"].map(e => <option key={e}>{e}</option>)}
+        </select>
+      </div>
       {filtradas.map(ref => (
         <Glass key={ref.id} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <p style={{ fontSize: 16, fontWeight: 900, color: T.text, fontFamily: T.font }}>{ref.nombre}</p>
-              <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{ref.descripcion}</p>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                <p style={{ fontSize: 16, fontWeight: 900, color: T.text, fontFamily: T.font }}>{ref.nombre}</p>
+                <span style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 700, color: eColor(ref.estado || "Borrador"), border: "1px solid " + eColor(ref.estado || "Borrador") + "55", padding: "2px 8px", borderRadius: 10 }}>
+                  {ref.estado || "Borrador"}{ref.estado === "En Prototipo" ? " P" + (ref.numPrototipo || 1) : ""}
+                </span>
+              </div>
+              <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{ref.descripcion}{ref.cliente ? " · " + ref.cliente : ""}{ref.temporada ? " · " + ref.temporada : ""}</p>
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6 }}>
               {confirmarEliminarId === ref.id ? (
                 <>
-                  <span style={{ fontSize: 10, color: T.red, fontFamily: T.mono }}>¿Eliminar?</span>
-                  <button onClick={() => eliminarRef(ref.id)}
-                    style={{ background: T.red, color: "#fff", border: "none", fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6, fontWeight: 900 }}>
-                    SÍ
-                  </button>
-                  <button onClick={() => setConfirmarEliminarId(null)}
-                    style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6 }}>
-                    NO
-                  </button>
+                  <span style={{ fontSize: 10, color: T.red, fontFamily: T.mono, alignSelf: "center" }}>¿Eliminar?</span>
+                  <button onClick={() => eliminarRef(ref.id)} style={{ background: T.red, color: "#fff", border: "none", fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6, fontWeight: 900 }}>SÍ</button>
+                  <button onClick={() => setConfirmarEliminarId(null)} style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6 }}>NO</button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => editarRef(ref)}
-                    style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>
-                    EDITAR
-                  </button>
-                  <button onClick={() => setConfirmarEliminarId(ref.id)}
-                    style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.4)", color: T.red, fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>
-                    ELIMINAR
-                  </button>
+                  <button onClick={() => editarRef(ref)} style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>VER / EDITAR</button>
+                  {["ADMIN","DIRECTOR_PRODUCCION"].includes(sesion?.rol) && ref.estado !== "Liberada" &&
+                    <button onClick={() => setConfirmarEliminarId(ref.id)} style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.4)", color: T.red, fontFamily: T.mono, fontSize: 10, padding: "5px 12px", cursor: "pointer", borderRadius: 6 }}>ELIMINAR</button>}
                 </>
               )}
             </div>
           </div>
-
-          {/* Tallas */}
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {ref.tallas.map(t => <Badge key={t} color="gray">{t}</Badge>)}
-          </div>
-
-          {/* Operaciones resumen */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {ref.operaciones.map((op, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, width: 16 }}>{String(i + 1).padStart(2, "0")}</span>
-                  <span style={{ fontSize: 12, color: T.text, fontFamily: T.font }}>{op.operacion}</span>
-                  {op.maquina && <span style={{ fontSize: 10, color: T.cyan, fontFamily: T.mono }}>⚙ {op.maquina}</span>}
-                </div>
-                <span style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>{op.sam}min</span>
-              </div>
-            ))}
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 8px" }}>
-              <span style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{ref.operaciones.length} operaciones</span>
-              <span style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM total: {ref.operaciones.reduce((a, o) => a + o.sam, 0).toFixed(1)} min</span>
-            </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(ref.tallas || []).map(t => <Badge key={t} color="gray">{t}</Badge>)}
+            {(ref.insumos || []).length > 0 && <Badge color="blue">{ref.insumos.length} insumos</Badge>}
+            {(ref.operaciones || []).length > 0 && <Badge color="yellow">SAM {(ref.operaciones || []).reduce((a, o) => a + o.sam, 0).toFixed(1)} min</Badge>}
           </div>
         </Glass>
       ))}
+      {filtradas.length === 0 && <Glass style={{ padding: 24, textAlign: "center" }}><p style={{ color: T.muted, fontFamily: T.mono, fontSize: 12 }}>No se encontraron fichas técnicas</p></Glass>}
+    </div>
+  );
 
-      {filtradas.length === 0 && (
-        <Glass style={{ padding: 24, textAlign: "center" }}>
-          <p style={{ color: T.muted, fontFamily: T.mono, fontSize: 12 }}>No se encontraron referencias</p>
+  // ── VISTA FORM ──
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => { setVista("lista"); setRefSel(null); }} style={{ color: T.yellow, fontFamily: T.mono, fontSize: 12, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← VOLVER</button>
+          <p style={{ fontSize: 13, fontWeight: 900, color: T.text, fontFamily: T.font }}>{refSel ? (form.nombre || "EDITAR FICHA") : "NUEVA FICHA TÉCNICA"}</p>
+        </div>
+        {refSel && <span style={{ fontSize: 10, fontFamily: T.mono, fontWeight: 700, color: eColor(form.estado), border: "1px solid " + eColor(form.estado) + "55", padding: "3px 10px", borderRadius: 10 }}>{form.estado}{form.estado === "En Prototipo" ? " P" + form.numPrototipo : ""}</span>}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 3, overflowX: "auto", gap: 2 }}>
+        {TABS_FORM.map(t => (
+          <button key={t.id} onClick={() => setTabForm(t.id)}
+            style={{ flex: 1, padding: "7px 4px", fontSize: 10, fontWeight: 800, fontFamily: T.mono, background: tabForm === t.id ? "rgba(255,255,255,0.1)" : "transparent", color: tabForm === t.id ? T.yellow : T.muted, border: "none", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}>
+            {t.label.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* TAB: Info */}
+      {tabForm === "info" && (
+        <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>CÓDIGO / REFERENCIA *</p><input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej: CAMISA-001" style={INP} maxLength={50} /></div>
+            <div><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>DESCRIPCIÓN</p><input value={form.descripcion} onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))} placeholder="Ej: Camisa manga larga" style={INP} maxLength={100} /></div>
+            <div><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>CLIENTE / DESTINO</p><input value={form.cliente} onChange={e => setForm(p => ({ ...p, cliente: e.target.value }))} placeholder="Ej: Almacenes Éxito" style={INP} maxLength={80} /></div>
+            <div><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>TEMPORADA</p><input value={form.temporada} onChange={e => setForm(p => ({ ...p, temporada: e.target.value }))} placeholder="Ej: 2026-1" style={INP} maxLength={20} /></div>
+          </div>
+          <div>
+            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.12em", marginBottom: 6 }}>TALLAS *</p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {TALLAS_DISPONIBLES.map(t => (
+                <button key={t} onClick={() => toggleTalla(t)}
+                  style={{ padding: "6px 14px", background: form.tallas.includes(t) ? "rgba(0,255,136,0.15)" : "rgba(255,255,255,0.04)", border: "1px solid " + (form.tallas.includes(t) ? T.green : T.border), borderRadius: 20, color: form.tallas.includes(t) ? T.green : T.muted, fontFamily: T.mono, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          {form.fechaCreacion && <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>Creada: {form.fechaCreacion}{form.fechaAprobacion ? " · Aprobada: " + form.fechaAprobacion : ""}{form.fechaLiberacion ? " · Liberada: " + form.fechaLiberacion : ""}</p>}
         </Glass>
       )}
+
+      {/* TAB: Insumos */}
+      {tabForm === "insumos" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Glass style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 10, color: T.cyan, fontFamily: T.mono }}>{editInsumoIdx !== null ? "EDITANDO INSUMO" : "AGREGAR INSUMO"}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr auto", gap: 6 }}>
+              <input value={insumoForm.material} onChange={e => setInsumoForm(p => ({ ...p, material: e.target.value }))} placeholder="Material (Tela, Hilo, Botón...)" style={INP} maxLength={60} />
+              <input value={insumoForm.referencia} onChange={e => setInsumoForm(p => ({ ...p, referencia: e.target.value }))} placeholder="Referencia / Color / Tipo" style={INP} maxLength={60} />
+              <select value={insumoForm.unidad} onChange={e => setInsumoForm(p => ({ ...p, unidad: e.target.value }))} style={INP}>{UNIDADES_INS.map(u => <option key={u}>{u}</option>)}</select>
+              <input type="number" value={insumoForm.consumo} onChange={e => setInsumoForm(p => ({ ...p, consumo: e.target.value }))} placeholder="Consumo" min={0} step={0.01} style={INP} />
+              <button onClick={agregarInsumo} style={{ padding: "8px 12px", background: T.cyan, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 13, cursor: "pointer" }}>{editInsumoIdx !== null ? "✓" : "+"}</button>
+            </div>
+            {editInsumoIdx !== null && <button onClick={() => { setEditInsumoIdx(null); setInsumoForm({ material: "", referencia: "", unidad: "m", consumo: "" }); }} style={{ alignSelf: "flex-start", background: "transparent", border: "1px solid " + T.border, color: T.muted, fontFamily: T.mono, fontSize: 10, padding: "4px 10px", cursor: "pointer", borderRadius: 6 }}>CANCELAR</button>}
+          </Glass>
+          {form.insumos.length === 0
+            ? <Glass style={{ padding: 16, textAlign: "center" }}><p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Sin insumos — agrega telas, hilos, botones, cremalleras, etc.</p></Glass>
+            : <Glass style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr auto", padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid " + T.border }}>
+                  {["MATERIAL","REFERENCIA","UNIDAD","CONSUMO",""].map(h => <p key={h} style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>{h}</p>)}
+                </div>
+                {form.insumos.map((ins, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr auto", padding: "10px 14px", borderBottom: "1px solid " + T.border, alignItems: "center" }}>
+                    <p style={{ fontSize: 12, color: T.text }}>{ins.material}</p>
+                    <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{ins.referencia || "—"}</p>
+                    <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{ins.unidad}</p>
+                    <p style={{ fontSize: 12, color: T.yellow, fontFamily: T.mono }}>{ins.consumo}</p>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => editarInsumo(idx)} style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 11 }}>✎</button>
+                      <button onClick={() => setForm(p => ({ ...p, insumos: p.insumos.filter((_, i) => i !== idx) }))} style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.3)", color: T.red, borderRadius: 6, width: 26, height: 26, cursor: "pointer", fontSize: 12 }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </Glass>
+          }
+        </div>
+      )}
+
+      {/* TAB: Corte */}
+      {tabForm === "corte" && (
+        <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>DIRECCIÓN DE CORTE</p><select value={form.corte.direccion} onChange={e => setForm(p => ({ ...p, corte: { ...p.corte, direccion: e.target.value } }))} style={INP}>{DIRS_CORTE.map(d => <option key={d}>{d}</option>)}</select></div>
+            <div><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>TIPO DE TENDIDO</p><select value={form.corte.tendido} onChange={e => setForm(p => ({ ...p, corte: { ...p.corte, tendido: e.target.value } }))} style={INP}>{TIPOS_TENDIDO.map(t => <option key={t}>{t}</option>)}</select></div>
+          </div>
+          {form.tallas.length > 0 ? (
+            <div>
+              <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 8 }}>CONSUMO DE TELA PRINCIPAL POR TALLA (metros)</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(90px,1fr))", gap: 8 }}>
+                {form.tallas.map(t => (
+                  <div key={t}>
+                    <p style={{ fontSize: 9, color: T.amber, fontFamily: T.mono, marginBottom: 3, textAlign: "center" }}>{t}</p>
+                    <input type="number" value={form.corte.consumoPorTalla[t] || ""}
+                      onChange={e => setForm(p => ({ ...p, corte: { ...p.corte, consumoPorTalla: { ...p.corte.consumoPorTalla, [t]: parseFloat(e.target.value) || 0 } } }))}
+                      placeholder="0.00" min={0} step={0.01} style={{ ...INP, textAlign: "center", padding: "8px 4px" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Selecciona las tallas en la pestaña Info para configurar consumo por talla.</p>}
+          <div>
+            <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>NOTAS DE CORTE</p>
+            <textarea value={form.corte.notas} onChange={e => setForm(p => ({ ...p, corte: { ...p.corte, notas: e.target.value } }))} placeholder="Instrucciones especiales, tolerancias, marcada, etc." rows={3} style={{ ...INP, resize: "vertical", fontFamily: T.mono, fontSize: 12, lineHeight: 1.5 }} maxLength={500} />
+          </div>
+        </Glass>
+      )}
+
+      {/* TAB: Operaciones */}
+      {tabForm === "operaciones" && (
+        <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: 11, color: T.yellow, fontFamily: T.mono, letterSpacing: "0.12em" }}>SECUENCIA DE OPERACIONES DE CONFECCIÓN</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: 3, minWidth: 140 }}><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>OPERACIÓN</p><input value={opForm.operacion} onChange={e => setOpForm(p => ({ ...p, operacion: e.target.value }))} onKeyDown={e => e.key === "Enter" && agregarOp()} placeholder="Ej: Costura de hombros" style={INP} maxLength={80} /></div>
+            <div style={{ flex: 1, minWidth: 80 }}><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>SAM (min)</p><input type="number" value={opForm.sam} onChange={e => setOpForm(p => ({ ...p, sam: e.target.value }))} onKeyDown={e => e.key === "Enter" && agregarOp()} placeholder="0.0" min={0.1} step={0.1} style={INP} /></div>
+            <div style={{ flex: 2, minWidth: 120 }}><p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>MÁQUINA</p>
+              <select value={opForm.maquina} onChange={e => { if (e.target.value === "__nueva__") setShowNuevaMaquina(true); else { setOpForm(p => ({ ...p, maquina: e.target.value })); setShowNuevaMaquina(false); } }} style={INP}>
+                <option value="">— Sin máquina —</option>
+                {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre}</option>)}
+                <option value="__nueva__">+ Nueva máquina</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}><button onClick={agregarOp} style={{ padding: "8px 16px", background: T.green, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 13, cursor: "pointer" }}>+</button></div>
+          </div>
+          {showNuevaMaquina && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", background: "rgba(0,255,136,0.05)", border: "1px solid rgba(0,255,136,0.2)", borderRadius: 8, padding: "10px 12px" }}>
+              <input value={nuevaMaquinaInput} onChange={e => setNuevaMaquinaInput(e.target.value)} onKeyDown={e => e.key === "Enter" && guardarNuevaMaquina()} placeholder="Nombre de la nueva máquina" style={{ ...INP, flex: 1 }} autoFocus />
+              <button onClick={guardarNuevaMaquina} disabled={guardandoMaquina} style={{ padding: "8px 14px", background: T.green, color: "#000", border: "none", borderRadius: 6, fontFamily: T.mono, fontWeight: 900, fontSize: 12, cursor: "pointer" }}>{guardandoMaquina ? "..." : "GUARDAR"}</button>
+              <button onClick={() => { setShowNuevaMaquina(false); setNuevaMaquinaInput(""); }} style={{ padding: "8px 12px", background: "transparent", border: "1px solid " + T.border, color: T.muted, borderRadius: 6, fontFamily: T.mono, fontSize: 12, cursor: "pointer" }}>CANCELAR</button>
+            </div>
+          )}
+          {form.operaciones.length === 0
+            ? <p style={{ fontSize: 11, color: T.faint, fontFamily: T.mono, textAlign: "center", padding: 12 }}>Sin operaciones — agrega la primera arriba</p>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {form.operaciones.map((op, idx) => (
+                  <div key={idx} draggable={editandoIdx !== idx}
+                    onDragStart={() => { setDraggingIdx(idx); setDragOverIdx(null); }}
+                    onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={() => { setDraggingIdx(null); setDragOverIdx(null); }}
+                    style={{ background: dragOverIdx === idx ? "rgba(255,230,0,0.08)" : "rgba(255,255,255,0.03)", border: "1px solid " + (dragOverIdx === idx ? T.yellow : editandoIdx === idx ? T.yellow : T.border), borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, opacity: draggingIdx === idx ? 0.4 : 1, transition: "all 0.15s" }}>
+                    <span style={{ fontSize: 14, color: T.faint, cursor: "grab", userSelect: "none" }}>⠿</span>
+                    <span style={{ fontSize: 11, color: T.muted, fontFamily: T.mono, width: 20, textAlign: "center" }}>{idx + 1}</span>
+                    {editandoIdx === idx ? (
+                      <div style={{ flex: 1, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <input value={editOpForm.operacion} onChange={e => setEditOpForm(p => ({ ...p, operacion: e.target.value }))} onKeyDown={e => e.key === "Enter" && guardarEditOp(idx)} style={{ ...INP, flex: 3, minWidth: 100, padding: "4px 8px", fontSize: 12 }} autoFocus />
+                        <input type="number" value={editOpForm.sam} onChange={e => setEditOpForm(p => ({ ...p, sam: e.target.value }))} placeholder="SAM" style={{ ...INP, flex: 1, minWidth: 60, padding: "4px 8px", fontSize: 12 }} />
+                        <select value={editOpForm.maquina} onChange={e => setEditOpForm(p => ({ ...p, maquina: e.target.value }))} style={{ ...INP, flex: 2, minWidth: 100, padding: "4px 8px", fontSize: 12 }}>
+                          <option value="">— Sin máquina —</option>
+                          {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre}</option>)}
+                        </select>
+                        <button onClick={() => guardarEditOp(idx)} style={{ background: T.green, color: "#000", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 13, fontWeight: 900 }}>✓</button>
+                        <button onClick={() => setEditandoIdx(null)} style={{ background: "transparent", border: "1px solid " + T.border, color: T.muted, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{op.operacion}</p>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM: {op.sam} min</p>
+                            {op.maquina && <p style={{ fontSize: 10, color: T.cyan, fontFamily: T.mono }}>⚙ {op.maquina}</p>}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => iniciarEditOp(idx)} style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 11 }}>✎</button>
+                          <button onClick={() => setForm(p => ({ ...p, operaciones: p.operaciones.filter((_, i) => i !== idx) }))} style={{ background: "transparent", border: "1px solid rgba(255,0,68,0.3)", color: T.red, borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}>✕</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+                <div style={{ background: "rgba(255,230,0,0.06)", border: "1px solid rgba(255,230,0,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", justifyContent: "space-between" }}>
+                  <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{form.operaciones.length} operaciones</p>
+                  <p style={{ fontSize: 10, color: T.yellow, fontFamily: T.mono }}>SAM total: {form.operaciones.reduce((a, o) => a + o.sam, 0).toFixed(1)} min</p>
+                </div>
+              </div>
+          }
+        </Glass>
+      )}
+
+      {/* TAB: Prototipo */}
+      {tabForm === "prototipo" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Glass style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, marginBottom: 4 }}>ESTADO ACTUAL</p>
+                <p style={{ fontSize: 18, fontWeight: 900, color: eColor(form.estado), fontFamily: T.font }}>{form.estado}{form.estado === "En Prototipo" ? " · P" + form.numPrototipo : ""}</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {form.estado === "Borrador" && refSel && <button onClick={() => setShowProtoModal("iniciar")} style={{ padding: "8px 14px", background: T.yellow, color: "#000", border: "none", borderRadius: 8, fontFamily: T.mono, fontWeight: 900, fontSize: 11, cursor: "pointer" }}>INICIAR PROTOTIPO 1</button>}
+                {form.estado === "En Prototipo" && <>
+                  <button onClick={() => setShowProtoModal("aprobar")} style={{ padding: "8px 14px", background: T.green, color: "#000", border: "none", borderRadius: 8, fontFamily: T.mono, fontWeight: 900, fontSize: 11, cursor: "pointer" }}>✓ APROBAR P{form.numPrototipo}</button>
+                  <button onClick={() => setShowProtoModal("rechazar")} style={{ padding: "8px 14px", background: "transparent", color: T.red, border: "1px solid " + T.red, borderRadius: 8, fontFamily: T.mono, fontWeight: 900, fontSize: 11, cursor: "pointer" }}>✕ NUEVO PROTOTIPO</button>
+                </>}
+                {form.estado === "Aprobada" && <button onClick={() => setShowProtoModal("liberar")} style={{ padding: "8px 14px", background: T.green, color: "#000", border: "none", borderRadius: 8, fontFamily: T.mono, fontWeight: 900, fontSize: 11, cursor: "pointer" }}>🚀 LIBERAR PARA PRODUCCIÓN</button>}
+                {form.estado === "Liberada" && <span style={{ fontSize: 11, color: T.green, fontFamily: T.mono }}>✓ Disponible para órdenes de producción</span>}
+              </div>
+            </div>
+            {!refSel && form.estado === "Borrador" && <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>Guarda la ficha primero para poder gestionar prototipos.</p>}
+          </Glass>
+          {showProtoModal && (
+            <Glass style={{ padding: 16, border: "1px solid " + T.yellow + "55", display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: T.yellow, fontFamily: T.mono }}>
+                {{ iniciar: "INICIAR PROTOTIPO " + ((form.numPrototipo || 0) + 1), aprobar: "APROBAR PROTOTIPO " + form.numPrototipo, rechazar: "RECHAZAR — NUEVO PROTOTIPO " + ((form.numPrototipo || 0) + 1), liberar: "LIBERAR PARA PRODUCCIÓN" }[showProtoModal]}
+              </p>
+              {showProtoModal !== "liberar" && <>
+                <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono }}>OBSERVACIONES</p>
+                <textarea value={notaProto} onChange={e => setNotaProto(e.target.value)} placeholder="Describe cambios, ajustes o razón de la decisión..." rows={2} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "8px 10px", color: T.text, fontSize: 12, outline: "none", fontFamily: T.mono, width: "100%", borderRadius: 6, resize: "vertical", boxSizing: "border-box" }} />
+              </>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={ejecutarProto} style={{ flex: 1, padding: "10px 0", background: showProtoModal === "rechazar" ? T.red : T.green, color: "#000", border: "none", fontFamily: T.mono, fontWeight: 900, cursor: "pointer", borderRadius: 8 }}>CONFIRMAR</button>
+                <button onClick={() => { setShowProtoModal(null); setNotaProto(""); }} style={{ padding: "10px 16px", background: "transparent", color: T.muted, border: "1px solid " + T.border, fontFamily: T.mono, cursor: "pointer", borderRadius: 8 }}>CANCELAR</button>
+              </div>
+            </Glass>
+          )}
+          <p style={{ fontSize: 9, color: T.muted, fontFamily: T.mono, letterSpacing: "0.12em" }}>HISTORIAL</p>
+          {form.historial.length === 0
+            ? <Glass style={{ padding: 16, textAlign: "center" }}><p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>Sin prototipos registrados aún</p></Glass>
+            : [...form.historial].reverse().map((h, idx) => (
+                <Glass key={idx} style={{ padding: "12px 16px", borderLeft: "3px solid " + (h.aprobado ? T.green : T.red) }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: h.aprobado ? T.green : T.red, fontFamily: T.mono }}>{h.aprobado ? "✓ APROBADO" : "✕ NO APROBADO"} — Prototipo {h.numero}</p>
+                    <p style={{ fontSize: 10, color: T.muted, fontFamily: T.mono }}>{h.fecha}</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: T.muted, fontFamily: T.mono }}>{h.observaciones}</p>
+                </Glass>
+              ))
+          }
+        </div>
+      )}
+
+      {errForm && <p style={{ color: T.red, fontSize: 12, fontFamily: T.mono, textAlign: "center" }}>⚠ {errForm}</p>}
+
+      <button onClick={guardar} disabled={form.estado === "Liberada"}
+        style={{ padding: "14px 0", background: form.estado === "Liberada" ? "rgba(255,255,255,0.06)" : T.green, color: form.estado === "Liberada" ? T.muted : "#000", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 900, fontFamily: T.font, cursor: form.estado === "Liberada" ? "not-allowed" : "pointer" }}>
+        {form.estado === "Liberada" ? "FICHA LIBERADA — SOLO LECTURA" : refSel ? "GUARDAR CAMBIOS" : "CREAR FICHA TÉCNICA"}
+      </button>
     </div>
   );
 };
@@ -3464,15 +4729,16 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
 export default function App() {
   const [sesion, setSesion] = useState(null);
   const [tab, setTab] = useState("dashboard");
-  const [ordenes, setOrdenes] = useState(ORDENES_INIT);
-  const [operarios, setOperarios] = useState(OPERARIOS_INIT);
-  const [usuarios, setUsuarios] = useState(USUARIOS_INIT);
+  const [ordenes, setOrdenes] = useState([]);
+  const [operarios, setOperarios] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [asignaciones, setAsignaciones] = useState([]);
   const [mensajes, setMensajes] = useState([]);
   const [logActividad, setLogActividad] = useState([]);
   const [registrosGlobales, setRegistrosGlobales] = useState([]);
   const [horarios, setHorarios] = useState(HORARIOS_INIT);
-  const [catalogo, setCatalogo] = useState(CATALOGO_INIT);
+  const [catalogo, setCatalogo] = useState([]);
+  const [pedidos, setPedidos]   = useState([]);
   const [maquinas, setMaquinas] = useState([]);
   const [dbListo, setDbListo] = useState(false);
 
@@ -3486,11 +4752,11 @@ export default function App() {
 
         // Órdenes
         const { data: oData } = await supabase.from("ordenes").select("*");
-        if (oData?.length) setOrdenes(oData.map(o => ({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidadTotal: o.cantidad_total, cantidadProducida: o.cantidad_producida, fechaEntrega: o.fecha_entrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas || [], secuencia: o.secuencia || [] })));
+        if (oData?.length) setOrdenes(oData.map(o => ({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidadTotal: o.cantidad_total, cantidadProducida: o.cantidad_producida, fechaEntrega: o.fecha_entrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas || [], secuencia: o.secuencia || [], pedidoId: o.pedido_id || null })));
 
         // Catálogo
         const { data: cData } = await supabase.from("catalogo").select("*");
-        if (cData?.length) setCatalogo(cData.map(c => ({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas || [], operaciones: c.operaciones || [] })));
+        if (cData?.length) setCatalogo(cData.map(c => ({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas || [], operaciones: c.operaciones || [], cliente: c.cliente || "", temporada: c.temporada || "", estado: c.estado || "Borrador", numPrototipo: c.num_prototipo || 0, insumos: c.insumos || [], corte: c.corte_specs || { direccion: "Al hilo", tendido: "Simple", consumoPorTalla: {}, notas: "" }, historial: c.historial || [], fechaCreacion: c.fecha_creacion || "", fechaAprobacion: c.fecha_aprobacion || null, fechaLiberacion: c.fecha_liberacion || null })));
 
         // Máquinas
         const { data: mData } = await supabase.from("maquinas").select("*").order("id");
@@ -3508,6 +4774,10 @@ export default function App() {
         const hace12h = new Date(Date.now() - 12 * 3600000).toISOString();
         const { data: rData } = await supabase.from("registros").select("*").gte("created_at", hace12h);
         if (rData?.length) setRegistrosGlobales(rData.map(r => ({ id: r.id, ts: r.ts, orden: r.orden, operacion: r.operacion, talla: r.talla, esParada: r.es_parada, esDefecto: r.es_defecto, tiempoReal: r.tiempo_real, sam: r.sam, usuarioId: r.usuario_id, nombre: r.nombre, modulo: r.modulo, motivo: r.motivo, afectaEf: r.afecta_ef, activa: r.activa, duracionMin: r.duracion_min })));
+
+        // Pedidos
+        const { data: pData } = await supabase.from("pedidos").select("*").order("created_at", { ascending: false });
+        if (pData?.length) setPedidos(pData.map(p => ({ id: p.id, numeroPedido: p.numero_pedido || "", tipo: p.tipo || "Producción", cliente: p.cliente, contacto: p.contacto || "", telefono: p.telefono || "", numeroOC: p.numero_oc || "", direccionEntrega: p.direccion_entrega || "", ciudad: p.ciudad || "", transportadora: p.transportadora || "", condicionesPago: p.condiciones_pago || "Contado", anticipoMonto: p.anticipo_monto || 0, anticipoEstado: p.anticipo_estado || "Pendiente", fechaEntrega: p.fecha_entrega || "", fechaInicioRequerida: p.fecha_inicio_requerida || "", prioridad: p.prioridad || "Media", estado: p.estado || "Borrador", referencias: p.referencias || [], notas: p.notas || "", fechaCreacion: p.fecha_creacion || "", creadoPor: p.creado_por || "", ordenProduccionId: p.orden_produccion_id || null, historial: p.historial || [] })));
 
         setDbListo(true);
         setListoParaUsar(true);
@@ -3592,7 +4862,7 @@ export default function App() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       // Sincronizar cada orden modificada
       next.forEach(o => {
-        supabase.from("ordenes").upsert({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidad_total: o.cantidadTotal, cantidad_producida: o.cantidadProducida, fecha_entrega: o.fechaEntrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas, secuencia: o.secuencia }).then(({ error }) => { if (error) console.error("Error sync orden:", error); });
+        supabase.from("ordenes").upsert({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidad_total: o.cantidadTotal, cantidad_producida: o.cantidadProducida, fecha_entrega: o.fechaEntrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas, secuencia: o.secuencia, pedido_id: o.pedidoId || null }).then(({ error }) => { if (error) console.error("Error sync orden:", error); });
       });
       return next;
     });
@@ -3602,7 +4872,7 @@ export default function App() {
     setCatalogo(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       next.forEach(c => {
-        supabase.from("catalogo").upsert({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas, operaciones: c.operaciones }).then(({ error }) => { if (error) console.error("Error sync catalogo:", error); });
+        supabase.from("catalogo").upsert({ id: c.id, nombre: c.nombre, descripcion: c.descripcion, tallas: c.tallas, operaciones: c.operaciones, cliente: c.cliente || "", temporada: c.temporada || "", estado: c.estado || "Borrador", num_prototipo: c.numPrototipo || 0, insumos: c.insumos || [], corte_specs: c.corte || {}, historial: c.historial || [], fecha_creacion: c.fechaCreacion || null, fecha_aprobacion: c.fechaAprobacion || null, fecha_liberacion: c.fechaLiberacion || null }).then(({ error }) => { if (error) console.error("Error sync catalogo:", error); });
       });
       return next;
     });
@@ -3629,6 +4899,27 @@ export default function App() {
     });
   }, []);
 
+  const setPedidosSync = useCallback((updater) => {
+    setPedidos(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(p => {
+        supabase.from("pedidos").upsert({
+          id: p.id, numero_pedido: p.numeroPedido || null, tipo: p.tipo || "Producción",
+          cliente: p.cliente, contacto: p.contacto || "", telefono: p.telefono || "",
+          numero_oc: p.numeroOC || null,
+          direccion_entrega: p.direccionEntrega || "", ciudad: p.ciudad || "",
+          transportadora: p.transportadora || "", condiciones_pago: p.condicionesPago || "Contado",
+          anticipo_monto: p.anticipoMonto || 0, anticipo_estado: p.anticipoEstado || "Pendiente",
+          fecha_entrega: p.fechaEntrega || null, fecha_inicio_requerida: p.fechaInicioRequerida || null,
+          prioridad: p.prioridad || "Media", estado: p.estado || "Borrador",
+          referencias: p.referencias || [], notas: p.notas || "",
+          fecha_creacion: p.fechaCreacion || null, creado_por: p.creadoPor || "",
+          orden_produccion_id: p.ordenProduccionId || null, historial: p.historial || []
+        }).then(({ error }) => { if (error) console.error("Error sync pedido:", error); });
+      });
+      return next;
+    });
+  }, []);
 
   const registrarLog = async (accion, u) => {
     if (!u) return;
@@ -3670,9 +4961,13 @@ export default function App() {
 
   const TABS_ALL = [
     { id: "inicio",     label: "Inicio",     icon: <LayoutDashboard size={18} strokeWidth={1.5} /> },
-    { id: "dashboard",  label: "Dashboard",  icon: <TrendingUp      size={18} strokeWidth={1.5} /> },
+    { id: "pipeline",   label: "Pipeline",   icon: <GitBranch       size={18} strokeWidth={1.5} /> },
+    { id: "pedidos",    label: "Pedidos",    icon: <ShoppingCart    size={18} strokeWidth={1.5} /> },
+    { id: "dashboard",  label: "Dashboard",  icon: <Activity        size={18} strokeWidth={1.5} /> },
     { id: "ordenes",    label: "Ordenes",    icon: <ClipboardList   size={18} strokeWidth={1.5} /> },
     { id: "catalogo",   label: "Catalogo",   icon: <FolderOpen      size={18} strokeWidth={1.5} /> },
+    { id: "inventario", label: "Compras",    icon: <Package         size={18} strokeWidth={1.5} /> },
+    { id: "corte",      label: "Corte",      icon: <Scissors        size={18} strokeWidth={1.5} /> },
     { id: "operarios",  label: "Operarios",  icon: <Users           size={18} strokeWidth={1.5} /> },
     { id: "eficiencia", label: "Eficiencia", icon: <TrendingUp      size={18} strokeWidth={1.5} /> },
     { id: "horarios",   label: "Horarios",   icon: <Clock           size={18} strokeWidth={1.5} /> },
@@ -3764,7 +5059,18 @@ export default function App() {
 
       {/* Content */}
       <main className="main-content" style={{ maxWidth: 1280, margin: "0 auto", padding: "14px 12px" }}>
-        {tab === "inicio"     && <AdminHome setTab={setTab} ordenes={ordenes} operarios={operarios} usuarios={usuarios} registrosGlobales={registrosGlobales} logActividad={logActividad} sesion={sesion} />}
+        {tab === "inicio" && (
+          sesion.rol === "DIRECTOR_PRODUCCION" ? <HomeDirector setTab={setTab} ordenes={ordenes} usuarios={usuarios} registrosGlobales={registrosGlobales} /> :
+          sesion.rol === "COMERCIAL"           ? <HomeComercial setTab={setTab} /> :
+          sesion.rol === "JEFE_COMPRAS"        ? <HomeJefeCompras setTab={setTab} /> :
+          sesion.rol === "JEFE_CORTE"          ? <HomeJefeCorte setTab={setTab} /> :
+          sesion.rol === "SUPERVISOR"          ? <HomeSupervisor setTab={setTab} ordenes={ordenes} operarios={operarios} usuarios={usuarios} registrosGlobales={registrosGlobales} asignaciones={asignaciones} /> :
+          <AdminHome setTab={setTab} ordenes={ordenes} operarios={operarios} usuarios={usuarios} registrosGlobales={registrosGlobales} logActividad={logActividad} sesion={sesion} />
+        )}
+        {tab === "pipeline"   && <PipelineProduccion ordenes={ordenes} />}
+        {tab === "pedidos"    && <GestionPedidos pedidos={pedidos} setPedidos={setPedidosSync} catalogo={catalogo} sesion={sesion} ordenes={ordenes} setOrdenes={setOrdenesSync} />}
+        {tab === "inventario" && <GestionInventario />}
+        {tab === "corte"      && <GestionCorte />}
         {tab === "dashboard"  && <Dashboard ordenes={ordenes} operarios={operarios} registrosGlobales={registrosGlobales} usuarios={usuarios} asignaciones={asignaciones} horarios={horarios} />}
         {tab === "ordenes"    && <GestionOrdenes ordenes={ordenes} setOrdenes={setOrdenesSync} operarios={operarios} catalogo={catalogo} />}
         {tab === "catalogo"   && <GestionCatalogo catalogo={catalogo} setCatalogo={setCatalogoSync} maquinas={maquinas} setMaquinas={setMaquinas} sesion={sesion} />}
