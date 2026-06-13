@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Settings, AlertTriangle, AlertCircle, LifeBuoy, Undo2, Check, Target, Scissors, LogOut, LayoutDashboard, ClipboardList, FolderOpen, Users, TrendingUp, Clock, KeyRound, Shield, Package, ShoppingCart, GitBranch, Activity } from "lucide-react";
+import { Bell, Settings, AlertTriangle, AlertCircle, LifeBuoy, Undo2, Check, Target, Scissors, LogOut, LayoutDashboard, ClipboardList, FolderOpen, Users, TrendingUp, Clock, KeyRound, Shield, Package, ShoppingCart, GitBranch, Activity, WifiOff } from "lucide-react";
 import { supabase } from "./supabase";
+import { enqueueRegistro, dequeueAll, countPending, setCacheData, getCacheData } from "./offlineQueue";
 
 const hashClave = async (clave, usuario) => {
   const encoder = new TextEncoder();
@@ -3872,8 +3873,13 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
     setRegistros(prev => [nuevoReg, ...prev]);
     if (setRegistrosGlobales) setRegistrosGlobales(prev => [nuevoReg, ...prev.slice(0, 499)]);
 
-    // Guardar en Supabase
-    supabase.from("registros").insert({ id: ahora, ts, orden: ordenSel, operacion: operacionSel, talla: tallaActiva, es_parada: false, es_defecto: false, tiempo_real: tiempoParaEf, sam: samActual, usuario_id: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo }).then(({ error }) => { if (error) console.error("Error guardando registro:", error); });
+    // Guardar en Supabase (o encolar si offline)
+    const payloadReg = { id: ahora, ts, orden: ordenSel, operacion: operacionSel, talla: tallaActiva, es_parada: false, es_defecto: false, tiempo_real: tiempoParaEf, sam: samActual, usuario_id: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
+    if (navigator.onLine) {
+      supabase.from("registros").insert(payloadReg).then(({ error }) => { if (error) { console.error("Error guardando registro:", error); enqueueRegistro({ _type: 'insert', ...payloadReg }); } });
+    } else {
+      enqueueRegistro({ _type: 'insert', ...payloadReg });
+    }
 
     setOrdenes(prev => prev.map(o => {
       if (o.id !== ordenSel) return o;
@@ -3918,10 +3924,15 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
         ? { ...r, activa: false, tsFin, duracionMin: Math.round((tsFin - r.tsInicio) / 60000) }
         : r
     ));
-    // Actualizar parada en Supabase
+    // Actualizar parada en Supabase (o encolar si offline)
     const paradaActiva = registros.find(r => r.esParada && r.activa);
     if (paradaActiva) {
-      supabase.from("registros").update({ activa: false, duracion_min: Math.round((tsFin - paradaActiva.tsInicio) / 60000) }).eq("id", paradaActiva.id).then(({ error }) => { if (error) console.error("Error cerrando parada:", error); });
+      const updatePayload = { activa: false, duracion_min: Math.round((tsFin - paradaActiva.tsInicio) / 60000) };
+      if (navigator.onLine) {
+        supabase.from("registros").update(updatePayload).eq("id", paradaActiva.id).then(({ error }) => { if (error) { console.error("Error cerrando parada:", error); enqueueRegistro({ _type: 'update', id: paradaActiva.id, ...updatePayload }); } });
+      } else {
+        enqueueRegistro({ _type: 'update', id: paradaActiva.id, ...updatePayload });
+      }
     }
     setCronIniciado(true);
   };
@@ -3970,8 +3981,13 @@ const TabletOperario = ({ ordenes, setOrdenes, sesion, asignaciones, mensajes, s
     };
     setRegistros(prev => [reg, ...prev]);
     if (setRegistrosGlobales) setRegistrosGlobales(prev => [reg, ...prev.slice(0, 499)]);
-    // Guardar parada en Supabase
-    supabase.from("registros").insert({ id: reg.id, ts: reg.ts, orden: ordenSel, operacion: operacionSel, es_parada: true, es_defecto: false, motivo: motivoParada, afecta_ef: motivoObj?.afectaEf || false, activa: true, usuario_id: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo }).then(({ error }) => { if (error) console.error("Error guardando parada:", error); });
+    // Guardar parada en Supabase (o encolar si offline)
+    const payloadParada = { id: reg.id, ts: reg.ts, orden: ordenSel, operacion: operacionSel, es_parada: true, es_defecto: false, motivo: motivoParada, afecta_ef: motivoObj?.afectaEf || false, activa: true, usuario_id: sesion?.id, nombre: sesion?.nombre, modulo: sesion?.modulo };
+    if (navigator.onLine) {
+      supabase.from("registros").insert(payloadParada).then(({ error }) => { if (error) { console.error("Error guardando parada:", error); enqueueRegistro({ _type: 'insert', ...payloadParada }); } });
+    } else {
+      enqueueRegistro({ _type: 'insert', ...payloadParada });
+    }
     setCronIniciado(false);
     setMotivoParada("");
     setShowParada(false);
@@ -4741,6 +4757,38 @@ export default function App() {
   const [pedidos, setPedidos]   = useState([]);
   const [maquinas, setMaquinas] = useState([]);
   const [dbListo, setDbListo] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // ─── OFFLINE: FLUSH COLA AL RECONECTAR ────────────────────────────────────
+  const flushQueue = useCallback(async () => {
+    const pending = await dequeueAll();
+    if (!pending.length) return;
+    for (const item of pending) {
+      if (item._type === 'update') {
+        const { id, ...fields } = item;
+        const { error } = await supabase.from("registros").update(fields).eq("id", id);
+        if (error) await enqueueRegistro(item);
+      } else {
+        const { _type, ...payload } = item;
+        const { error } = await supabase.from("registros").insert(payload);
+        if (error) await enqueueRegistro(item);
+      }
+    }
+    setPendingCount(await countPending());
+  }, []);
+
+  useEffect(() => {
+    countPending().then(setPendingCount);
+    const handleOnline  = () => { setIsOnline(true);  flushQueue(); };
+    const handleOffline = () => { setIsOnline(false); countPending().then(setPendingCount); };
+    window.addEventListener('online',  handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online',  handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [flushQueue]);
 
   // ─── CARGA INICIAL DESDE SUPABASE ─────────────────────────────────────────
   useEffect(() => {
@@ -4748,11 +4796,13 @@ export default function App() {
       try {
         // Usuarios
         const { data: uData } = await supabase.from("usuarios").select("*");
-        if (uData?.length) setUsuarios(uData.map(u => ({ id: u.id, nombre: u.nombre, usuario: u.usuario, clave: u.clave, rol: u.rol, modulo: u.modulo || "", activo: u.activo, hashPendiente: false, auth_id: u.auth_id || null })));
+        const mappedUsuarios = uData?.length ? uData.map(u => ({ id: u.id, nombre: u.nombre, usuario: u.usuario, clave: u.clave, rol: u.rol, modulo: u.modulo || "", activo: u.activo, hashPendiente: false, auth_id: u.auth_id || null })) : null;
+        if (mappedUsuarios) { setUsuarios(mappedUsuarios); await setCacheData("usuarios", mappedUsuarios); }
 
         // Órdenes
         const { data: oData } = await supabase.from("ordenes").select("*");
-        if (oData?.length) setOrdenes(oData.map(o => ({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidadTotal: o.cantidad_total, cantidadProducida: o.cantidad_producida, fechaEntrega: o.fecha_entrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas || [], secuencia: o.secuencia || [], pedidoId: o.pedido_id || null })));
+        const mappedOrdenes = oData?.length ? oData.map(o => ({ id: o.id, referencia: o.referencia, descripcion: o.descripcion, cliente: o.cliente, cantidadTotal: o.cantidad_total, cantidadProducida: o.cantidad_producida, fechaEntrega: o.fecha_entrega, estado: o.estado, prioridad: o.prioridad, tallas: o.tallas || [], secuencia: o.secuencia || [], pedidoId: o.pedido_id || null })) : null;
+        if (mappedOrdenes) { setOrdenes(mappedOrdenes); await setCacheData("ordenes", mappedOrdenes); }
 
         // Catálogo
         const { data: cData } = await supabase.from("catalogo").select("*");
@@ -4764,11 +4814,12 @@ export default function App() {
 
         // Asignaciones
         const { data: aData } = await supabase.from("asignaciones").select("*");
-        if (aData?.length) setAsignaciones(aData.map(a => ({ usuarioId: a.usuario_id, ordenId: a.orden_id, operaciones: a.operaciones || [] })));
+        const mappedAsig = aData?.length ? aData.map(a => ({ usuarioId: a.usuario_id, ordenId: a.orden_id, operaciones: a.operaciones || [] })) : null;
+        if (mappedAsig) { setAsignaciones(mappedAsig); await setCacheData("asignaciones", mappedAsig); }
 
         // Horarios
         const { data: hData } = await supabase.from("horarios").select("*").order("id", { ascending: false }).limit(1);
-        if (hData?.length) setHorarios(hData[0].config);
+        if (hData?.length) { setHorarios(hData[0].config); await setCacheData("horarios", hData[0].config); }
 
         // Registros del turno actual (últimas 12h)
         const hace12h = new Date(Date.now() - 12 * 3600000).toISOString();
@@ -4783,6 +4834,15 @@ export default function App() {
         setListoParaUsar(true);
       } catch (e) {
         console.error("Error cargando datos:", e);
+        // Cargar desde caché offline
+        const [cu, co, ca, ch] = await Promise.all([
+          getCacheData("usuarios"), getCacheData("ordenes"),
+          getCacheData("asignaciones"), getCacheData("horarios"),
+        ]);
+        if (cu) setUsuarios(cu);
+        if (co) setOrdenes(co);
+        if (ca) setAsignaciones(ca);
+        if (ch) setHorarios(ch);
         setDbListo(true);
         setListoParaUsar(true);
       }
@@ -5024,8 +5084,17 @@ export default function App() {
             <p style={{ fontSize: 8, color: T.muted, letterSpacing: "0.14em", fontFamily: T.mono }}>CONTROL DE PISO</p>
           </div>
           <div className="hide-mobile" style={{ alignItems: "center", gap: 6, marginLeft: 8 }}>
-            <span className="blink" style={{ width: 6, height: 6, borderRadius: "50%", background: dbListo ? T.green : T.yellow, display: "inline-block" }} />
-            <span style={{ fontSize: 9, color: dbListo ? T.green : T.yellow, fontFamily: T.mono }}>{dbListo ? "CONECTADO" : "SINCRONIZANDO..."}</span>
+            {isOnline ? (
+              <>
+                <span className="blink" style={{ width: 6, height: 6, borderRadius: "50%", background: dbListo ? T.green : T.yellow, display: "inline-block" }} />
+                <span style={{ fontSize: 9, color: dbListo ? T.green : T.yellow, fontFamily: T.mono }}>{dbListo ? "CONECTADO" : "SINCRONIZANDO..."}</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={12} color={T.red} />
+                <span style={{ fontSize: 9, color: T.red, fontFamily: T.mono }}>OFFLINE{pendingCount > 0 ? " · " + pendingCount + " pendientes" : ""}</span>
+              </>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -5040,6 +5109,16 @@ export default function App() {
           <button onClick={cerrarSesion} style={{ background: "transparent", border: "1px solid #4499ff", color: "#4499ff", fontFamily: T.mono, fontSize: 10, padding: "5px 10px", cursor: "pointer", borderRadius: 6 }}>SALIR</button>
         </div>
       </header>
+      {/* Banner offline */}
+      {!isOnline && (
+        <div style={{ background: "rgba(255,0,68,0.1)", borderBottom: "1px solid " + T.red, padding: "6px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <WifiOff size={12} color={T.red} />
+          <p style={{ fontSize: 10, color: T.red, fontFamily: T.mono }}>
+            SIN CONEXIÓN — Los registros se guardan localmente y se sincronizarán al reconectar
+            {pendingCount > 0 ? " (" + pendingCount + " pendientes)" : ""}
+          </p>
+        </div>
+      )}
       {/* Aviso de inactividad */}
       {sesion && Date.now() - ultimaActividad > INACTIVIDAD_MS * 0.8 && (
         <div style={{ background: "rgba(255,230,0,0.1)", borderBottom: "1px solid " + T.yellow, padding: "6px 16px", textAlign: "center" }}>
